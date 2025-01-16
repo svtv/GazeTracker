@@ -107,5 +107,5 @@ python main.pyw
 
 ---
 
-## Tags
-#computer-vision #eye-tracking #face-detection #python #opencv #mediapipe #gaze-tracking #face-tracking #real-time-tracking #vision-correction #vision-self-control #vision-defects #vision-monitoring #eye-health #vision-alerts #vision-assistance
+## Topics
+`computer-vision` `eye-tracking` `face-detection` `python` `opencv` `mediapipe` `gaze-tracking` `face-tracking` `real-time-tracking` `vision-correction` `vision-self-control` `vision-defects` `vision-monitoring` `eye-health` `vision-alerts` `vision-assistance`
