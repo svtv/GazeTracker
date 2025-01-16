@@ -71,6 +71,7 @@ class App(ctk.CTk):
         self.overlay.set_opacity(self.settings.get(OVERLAY_OPACITY_KEY, OVERLAY_OPACITY))
 
         # Initialize variables
+        self.eye_distance = ctk.StringVar()
         self.threshold_mutex = False
         self.threshold_value = ctk.DoubleVar(value=self.settings.get(STRABISMUS_THRESHOLD_KEY, STRABISMUS_THRESHOLD))
         self.threshold_value.trace_add("write", self._update_threshold_by_entry)  
@@ -107,7 +108,7 @@ class App(ctk.CTk):
         app_font = self.settings.get(APP_FONT_KEY, APP_FONT)
         app_font_big = (app_font, 16)
         app_font_big_bold = (app_font, 16, "bold")
-        app_font_small = (app_font, 11)
+        app_font_small = (app_font, 13)
 
         # Create video frame
         self.video_frame = ctk.CTkFrame(self)
@@ -118,10 +119,28 @@ class App(ctk.CTk):
         # Create threshold frame
         threshold_frame = ctk.CTkFrame(self)
 
+        threshold_inner_frame1 = ctk.CTkFrame(
+            master=threshold_frame,
+            fg_color=ctk.ThemeManager.theme["CTkFrame"]["fg_color"][1],
+        )
+
         chart_label = ctk.CTkLabel(
-            threshold_frame, 
+            threshold_inner_frame1, 
             text="Eye Distance",
-            font=app_font_big_bold
+            font=app_font_small
+        )
+
+        self.eye_distance_entry = ctk.CTkEntry(
+            threshold_inner_frame1, 
+            width=60,
+            height=20,
+            border_width=0,
+            fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1],
+            text_color="#768df1", # Default color of CTkLine
+            textvariable=self.eye_distance,
+            font=app_font_small,
+            justify=tk.CENTER,
+            state=ctk.DISABLED
         )
 
         # Create line chart widget
@@ -148,10 +167,27 @@ class App(ctk.CTk):
             y_space=0,
         )
 
+        threshold_inner_frame2 = ctk.CTkFrame(
+            master=threshold_frame,
+            fg_color=ctk.ThemeManager.theme["CTkFrame"]["fg_color"][1],
+        )
+
         threshold_label = ctk.CTkLabel(
-            threshold_frame, 
+            threshold_inner_frame2, 
             text="Alert Threshold",
-            font=app_font_big_bold
+            font=app_font_small
+        )
+
+        threshold_entry = ctk.CTkEntry(
+            threshold_inner_frame2, 
+            width=60,
+            height=20,
+            border_width=0,
+            fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1],
+            text_color="red",
+            textvariable=self.threshold_value,
+            font=app_font_small,
+            justify=tk.CENTER,
         )
         
         # Use mouse wheel to adjust Alert Threshold. Hold Ctrl for fine-tuning
@@ -169,7 +205,7 @@ class App(ctk.CTk):
             text=None,
             command=self._update_threshold_by_knob
         )
-
+        
         threshold_knob_label = ctk.CTkLabel(
             threshold_frame, 
             text="Use mouse wheel to adjust Alert Threshold.\nHold Ctrl for fine-tuning",
@@ -177,19 +213,10 @@ class App(ctk.CTk):
             text_color=ctk.ThemeManager.theme["CTkButton"]["text_color_disabled"][1],
             wraplength=200,
         )
-
-        threshold_entry = ctk.CTkEntry(
-            threshold_frame, 
-            width=100,
-            border_width=0,
-            fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1],
-            textvariable=self.threshold_value,
-            font=app_font_big,
-            justify=tk.CENTER,
-        )
         
         # Create misc frame
-        misc_frame = ctk.CTkScrollableFrame(self)
+        misc_frame = ctk.CTkFrame(self)
+        # misc_frame = ctk.CTkScrollableFrame(self)
 
         # Create show camera switch
         show_camera_switch = ctk.CTkSwitch(
@@ -284,11 +311,20 @@ class App(ctk.CTk):
         
         # Pack threshold controls
         threshold_frame.pack(fill='x', padx=10, pady=(10, 5))
-        chart_label.pack(pady=(5, 10), padx=15)
+        
+        threshold_inner_frame1.pack(fill='x', padx=5, pady=5)
+        threshold_inner_frame1.grid_columnconfigure((0, 1), weight=1)
+        chart_label.grid(row=0, column=0, sticky='w')
+        self.eye_distance_entry.grid(row=0, column=1, sticky='e')
+
         self.chart.pack(pady=0, padx=5, anchor="center")
-        threshold_label.pack(pady=(5, 10), padx=15)
-        threshold_entry.pack(pady=(0, 5), anchor="center")
-        self.threshold_knob.pack(pady=(5, 5), anchor="center")
+
+        threshold_inner_frame2.pack(fill='x', padx=5, pady=5)
+        threshold_inner_frame2.grid_columnconfigure((0, 1), weight=1)
+        threshold_label.grid(row=0, column=0, sticky='w')
+        threshold_entry.grid(row=0, column=1, sticky='e')
+
+        self.threshold_knob.pack(pady=(0, 5), anchor="center")
         threshold_knob_label.pack(pady=(0, 10), anchor="center")
         
         # Pack misc controls
@@ -339,10 +375,12 @@ class App(ctk.CTk):
 
             # Process results
             self.face_detected = bool(mesh_results.multi_face_landmarks)
-            strabismus_detected = results['normalized_eye_distance']  > self.threshold_value.get()
+            eye_distance_raw = results['normalized_eye_distance']
+            self.eye_distance.set(self.format_eye_distance(eye_distance_raw))
+            strabismus_detected = eye_distance_raw  > self.threshold_value.get()
             self.overlay.show(strabismus_detected and self.fullscreen_alert.get())  # Show/hide overlay based on strabismus detection
             
-            eye_distance_percent = (results['normalized_eye_distance'] - STRABISMUS_RANGE_MIN) / (STRABISMUS_RANGE_MAX - STRABISMUS_RANGE_MIN)
+            eye_distance_percent = (eye_distance_raw - STRABISMUS_RANGE_MIN) / (STRABISMUS_RANGE_MAX - STRABISMUS_RANGE_MIN)
 
             # Create a line for the line chart
             self.chart_data.append(100 * eye_distance_percent)
@@ -405,7 +443,7 @@ class App(ctk.CTk):
         self.app_geometry = new_geometry
         # Save to settings
         self.settings.set(APP_GEOMETRY_KEY, str(new_geometry))
-
+            
     def _update_threshold_by_entry(self, *args):
         try:
             self.threshold_mutex = True

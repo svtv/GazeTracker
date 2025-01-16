@@ -340,7 +340,7 @@ class ImageProcessor:
         cv.putText(
             img=frame, 
             text=screen_text, 
-            org=(frame.shape[1] - screen_text_size[0] - 10, 35), 
+            org=((frame.shape[1] - screen_text_size[0]) // 2, frame.shape[0] - 20), 
             fontFace=cv.FONT_HERSHEY_SIMPLEX, 
             fontScale=0.4, 
             color=screen_text_color, 
