@@ -8,7 +8,6 @@ import tkinter as tk
 import traceback
 
 from CTkColorPicker import *
-from src.settings_window import SettingsWindow
 from src.app_types import Size
 from src.component_loader import ComponentLoader
 from src.config import *
