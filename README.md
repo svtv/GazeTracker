@@ -104,8 +104,3 @@ python main.pyw
 
 ### Благодарности
 Вдохновлено проектом [Python-Gaze-Face-Tracker](https://github.com/alireza787b/Python-Gaze-Face-Tracker)
-
----
-
-## Tags
-#computer-vision #eye-tracking #face-detection #python #opencv #mediapipe #gaze-tracking #face-tracking #real-time-tracking #vision-correction #vision-self-control #vision-defects #vision-monitoring #eye-health #vision-alerts #vision-assistance
