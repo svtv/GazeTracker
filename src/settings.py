@@ -2,7 +2,7 @@ import json
 import os
 
 from typing import Any, Dict
-from config import *
+from .config import *
 
 class Settings:
     """
@@ -19,7 +19,7 @@ class Settings:
     
     def _load_settings(self):
         """Loads settings from JSON file. Creates empty settings if file doesn't exist"""
-        settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
+        settings_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'settings.json')
         
         try:
             with open(settings_path, 'r', encoding='utf-8') as f:
@@ -67,7 +67,7 @@ class Settings:
         current[keys[-1]] = value
             
         # Save to file
-        settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
+        settings_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'settings.json')
         with open(settings_path, 'w', encoding='utf-8') as f:
             json.dump(self._settings, f, indent=4)
     

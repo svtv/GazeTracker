@@ -3,9 +3,9 @@ import importlib
 import queue
 import threading
 
-from app_types import Size
-from config import *
-from settings import Settings
+from .app_types import Size
+from .config import *
+from .settings import Settings
 from tkinter import messagebox
 
 class ComponentLoader:
@@ -131,7 +131,7 @@ class ComponentLoader:
             
             # Import local modules
             self.load_queue.put(("message", "Loading image processor..."))
-            self.modules['image_processor'] = importlib.import_module('image_processor')
+            self.modules['image_processor'] = importlib.import_module('src.image_processor')
             self.load_queue.put(("progress_update", "other_modules", 0.7))
             
             self.components_loaded['other_modules'] = True

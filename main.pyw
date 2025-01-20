@@ -7,13 +7,13 @@ import customtkinter as ctk
 import tkinter as tk
 import traceback
 
-from settings_window import SettingsWindow
-from app_types import Size
-from component_loader import ComponentLoader
-from config import *
 from CTkColorPicker import *
-from overlay import OverlayWindow
-from widgets.imageknobex import ImageKnobEx
+from src.settings_window import SettingsWindow
+from src.app_types import Size
+from src.component_loader import ComponentLoader
+from src.config import *
+from src.overlay import OverlayWindow
+from src.widgets.imageknobex import ImageKnobEx
 
 class App(ctk.CTk):
     """Main application window"""

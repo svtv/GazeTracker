@@ -2,7 +2,7 @@ import cv2 as cv
 import math
 import numpy as np
 
-from config import *
+from .config import *
 
 class ImageProcessor:
     """Image processing and enhancement class"""
