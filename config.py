@@ -2,6 +2,8 @@
 APP_TITLE = "Eye and Face Tracker"
 APP_FONT = "Segoe UI"
 APP_FONT_KEY = 'app.font'
+APP_FONT_SIZE = 13
+APP_FONT_SIZE_TITLE = 16
 
 # Main window size
 APP_GEOMETRY = "980x600"
@@ -19,6 +21,16 @@ OVERLAY_OPACITY_KEY = 'app.overlay_opacity'
 LOADING_WINDOW_WIDTH = 400
 LOADING_WINDOW_HEIGHT = 240
 LOADING_WINDOW_GEOMETRY = f"{LOADING_WINDOW_WIDTH}x{LOADING_WINDOW_HEIGHT}"
+
+# Settings window size
+SETTINGS_WINDOW_WIDTH = 300
+SETTINGS_WINDOW_HEIGHT = 200
+SETTINGS_WINDOW_GEOMETRY = f"{SETTINGS_WINDOW_WIDTH}x{SETTINGS_WINDOW_HEIGHT}"
+
+# Window position setting key
+MAIN_WINDOW_POSITION_KEY = 'app.window_position'
+LOADING_WINDOW_POSITION_KEY = 'app.loading_window_position'
+SETTINGS_WINDOW_POSITION_KEY = 'app.settings_window_position'
 
 # Threshold knob configuration
 THRESHOLD_KNOB_STEP = -0.010
@@ -44,7 +56,7 @@ STRABISMUS_THRESHOLD_KEY = 'strabismus.threshold'
 ## Display Configuration
 
 # REFRESH_DELAY_MS: Delay in milliseconds between each frame refresh
-REFRESH_DELAY_MS = 50
+REFRESH_DELAY_MS = 100
 
 # CHART_BUFFER_SIZE: Size of the buffer for the line chart
 CHART_BUFFER_SIZE = 100

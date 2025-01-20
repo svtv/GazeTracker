@@ -10,8 +10,9 @@ from tkinter import messagebox
 
 class ComponentLoader:
     """Class for managing application component loading"""
-    def __init__(self, parent_window):
-        self.parent = parent_window
+    def __init__(self, parent):
+        self.parent = parent
+        
         self.load_queue = queue.Queue()
         self.is_loaded = False
         self.modules = {}
@@ -148,13 +149,13 @@ class ComponentLoader:
         
         # Add inner padding
         content_frame = ctk.CTkFrame(self.loading_frame)
-        content_frame.pack(fill='both', expand=True, padx=15, pady=15)
+        content_frame.pack(fill='both', expand=True, padx=5, pady=5)
         
         # Add title
         title_label = ctk.CTkLabel(
             content_frame, 
             text="Loading Components",
-            font=(self.default_font, 16, "bold")
+            font=(self.default_font, APP_FONT_SIZE_TITLE, "bold")
         )
         title_label.pack(pady=(5, 10), padx=15)
         

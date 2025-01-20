@@ -256,19 +256,18 @@ class ImageProcessor:
         Returns:
             dict: Processing results containing frame and detection flags
         """
+        return ImageProcessor._process_face_mesh_impl(app, frame, mesh_results) if mesh_results.multi_face_landmarks else ImageProcessor._process_face_mesh_noface(app, frame, mesh_results)
+
+    @staticmethod
+    def _process_face_mesh_impl(app, frame, mesh_results):
         # Get frame dimensions
         img_h, img_w = frame.shape[:2]
         normalized_eye_distance = 0
         mesh_points = None
-        screen_text = "No face detected"
-        screen_text_color = ImageProcessor.rgb_to_bgr(YELLOW_COLOR)
                 
         # If show_camera is off, create a gradient background
         if not app.show_camera.get():
             background_rgb = BACKGROUND_COLOR
-            if not mesh_results.multi_face_landmarks:
-                background_rgb = BACKGROUND_DARK_COLOR
-
             background_bgr = ImageProcessor.rgb_to_bgr(background_rgb)
 
             frame = ImageProcessor.create_gradient_background(
@@ -276,60 +275,79 @@ class ImageProcessor:
                 width=frame.shape[1], 
                 base_color=background_bgr
             )
+            
+        face_landmarks = mesh_results.multi_face_landmarks[0]
         
-        if mesh_results.multi_face_landmarks:
-                
-            face_landmarks = mesh_results.multi_face_landmarks[0]
-            
-            # Convert landmarks to numpy array
-            mesh_points = np.array([
-                [int(point.x * img_w), int(point.y * img_h)]
-                for point in face_landmarks.landmark
-            ])
-            
-            # Only center mesh points when show_camera is False
-            if not app.show_camera.get():
-                window_center_x = img_w // 2
-                window_center_y = img_h // 2
-                mesh_center_x = np.mean(mesh_points[:, 0])
-                mesh_center_y = np.mean(mesh_points[:, 1])
-                offset_x = int(window_center_x - mesh_center_x)
-                offset_y = int(window_center_y - mesh_center_y)
-                mesh_points[:, 0] += offset_x
-                mesh_points[:, 1] += offset_y
+        # Convert landmarks to numpy array
+        mesh_points = np.array([
+            [int(point.x * img_w), int(point.y * img_h)]
+            for point in face_landmarks.landmark
+        ])
 
-            # Process eyes
-            (l_cx, l_cy), l_radius = cv.minEnclosingCircle(mesh_points[LEFT_EYE_IRIS])
-            (r_cx, r_cy), r_radius = cv.minEnclosingCircle(mesh_points[RIGHT_EYE_IRIS])
-            center_left = np.array([l_cx, l_cy], dtype=np.int32)
-            center_right = np.array([r_cx, r_cy], dtype=np.int32)
+        # Process eyes
+        (l_cx, l_cy), l_radius = cv.minEnclosingCircle(mesh_points[LEFT_EYE_IRIS])
+        (r_cx, r_cy), r_radius = cv.minEnclosingCircle(mesh_points[RIGHT_EYE_IRIS])
+        center_left = np.array([l_cx, l_cy], dtype=np.int32)
+        center_right = np.array([r_cx, r_cy], dtype=np.int32)
 
-            # Check for strabismus
-            eye_distance = math.hypot(l_cx - r_cx, l_cy - r_cy)
-            face_width = abs(mesh_points[234][0] - mesh_points[454][0])
-            normalized_eye_distance = eye_distance / face_width if face_width > 0 else 0
+        # Check for strabismus
+        eye_distance = math.hypot(l_cx - r_cx, l_cy - r_cy)
+        face_width = abs(mesh_points[234][0] - mesh_points[454][0])
+        normalized_eye_distance = eye_distance / face_width if face_width > 0 else 0
 
-            # Visualization
+        # left_eye_squint = False
+        # right_eye_squint = False
+        # if normalized_eye_distance > app.threshold_value.get():
+        #     nose_point = mesh_points[NOSE_TIP_INDEX]
+        #     left_eye_to_nose = math.hypot(l_cx - nose_point[0], l_cy - nose_point[1])
+        #     right_eye_to_nose = math.hypot(r_cx - nose_point[0], r_cy - nose_point[1])
 
-            # Draw mesh
-            mesh_color = ImageProcessor.rgb_to_bgr(MESH_COLOR)
-            for point in mesh_points:
-                cv.circle(frame, tuple(point), 1, mesh_color, -1)
+        #     left_eye_squint = left_eye_to_nose > right_eye_to_nose
+        #     right_eye_squint = not left_eye_squint
 
-            # Draw eyes
-            iris_color = ImageProcessor.rgb_to_bgr(MESH_LIGHT_COLOR)
-            eye_inner_corner_color = ImageProcessor.rgb_to_bgr(MESH_LIGHT_COLOR)
-            eye_outer_corner_color = ImageProcessor.rgb_to_bgr(MESH_LIGHT_COLOR)
-            
-            cv.circle(frame, center_left, int(l_radius), iris_color, 2, cv.LINE_AA)
-            cv.circle(frame, center_right, int(r_radius), iris_color, 2, cv.LINE_AA)
-            cv.circle(frame, mesh_points[LEFT_EYE_INNER_CORNER][0], 3, eye_inner_corner_color, -1, cv.LINE_AA)
-            cv.circle(frame, mesh_points[LEFT_EYE_OUTER_CORNER][0], 3, eye_outer_corner_color, -1, cv.LINE_AA)
-            cv.circle(frame, mesh_points[RIGHT_EYE_INNER_CORNER][0], 3, eye_inner_corner_color, -1, cv.LINE_AA)
-            cv.circle(frame, mesh_points[RIGHT_EYE_OUTER_CORNER][0], 3, eye_outer_corner_color, -1, cv.LINE_AA)
+        #     # face_width = abs(mesh_points[234][0] - mesh_points[454][0])
+        #     # normalized_left_eye_to_nose = left_eye_to_nose / face_width
+        #     # normalized_right_eye_to_nose = right_eye_to_nose / face_width                       
 
-            screen_text = app.format_eye_distance(normalized_eye_distance)
-            screen_text_color = ImageProcessor.rgb_to_bgr(MESH_DARK_COLOR)
+        # Visualization
+        
+        # Only center mesh points when show_camera is False
+        if not app.show_camera.get():
+            # Calculate offset
+            window_center_x = img_w // 2
+            window_center_y = img_h // 2
+            mesh_center_x = np.mean(mesh_points[:, 0])
+            mesh_center_y = np.mean(mesh_points[:, 1])
+            offset_x = int(window_center_x - mesh_center_x)
+            offset_y = int(window_center_y - mesh_center_y)
+
+            # Apply offset
+            mesh_points[:, 0] += offset_x
+            mesh_points[:, 1] += offset_y
+            center_left[0] += offset_x
+            center_left[1] += offset_y
+            center_right[0] += offset_x
+            center_right[1] += offset_y
+
+        # Draw mesh
+        mesh_color = ImageProcessor.rgb_to_bgr(MESH_COLOR)
+        for point in mesh_points:
+            cv.circle(frame, tuple(point), 1, mesh_color, -1)
+
+        # Draw eyes
+        iris_color = ImageProcessor.rgb_to_bgr(MESH_LIGHT_COLOR)
+        eye_inner_corner_color = ImageProcessor.rgb_to_bgr(MESH_LIGHT_COLOR)
+        eye_outer_corner_color = ImageProcessor.rgb_to_bgr(MESH_LIGHT_COLOR)
+        
+        cv.circle(frame, center_left, int(l_radius), iris_color, 2, cv.LINE_AA)
+        cv.circle(frame, center_right, int(r_radius), iris_color, 2, cv.LINE_AA)
+        cv.circle(frame, mesh_points[LEFT_EYE_INNER_CORNER][0], 3, eye_inner_corner_color, -1, cv.LINE_AA)
+        cv.circle(frame, mesh_points[LEFT_EYE_OUTER_CORNER][0], 3, eye_outer_corner_color, -1, cv.LINE_AA)
+        cv.circle(frame, mesh_points[RIGHT_EYE_INNER_CORNER][0], 3, eye_inner_corner_color, -1, cv.LINE_AA)
+        cv.circle(frame, mesh_points[RIGHT_EYE_OUTER_CORNER][0], 3, eye_outer_corner_color, -1, cv.LINE_AA)
+
+        screen_text = app.format_eye_distance(normalized_eye_distance)
+        screen_text_color = ImageProcessor.rgb_to_bgr(MESH_DARK_COLOR)
 
         screen_text_size = cv.getTextSize(
             text=screen_text, 
@@ -351,4 +369,43 @@ class ImageProcessor:
             'frame': frame,
             'normalized_eye_distance': normalized_eye_distance,
             'mesh_points': mesh_points,
+        }
+
+    @staticmethod
+    def _process_face_mesh_noface(app, frame, mesh_results):
+
+        screen_text = "No face detected"
+        screen_text_color = ImageProcessor.rgb_to_bgr(YELLOW_COLOR)
+                
+        # If show_camera is off, create a gradient background
+        if not app.show_camera.get():
+            background_rgb = BACKGROUND_DARK_COLOR
+            background_bgr = ImageProcessor.rgb_to_bgr(background_rgb)
+
+            frame = ImageProcessor.create_gradient_background(
+                height=frame.shape[0], 
+                width=frame.shape[1], 
+                base_color=background_bgr
+            )
+
+        screen_text_size = cv.getTextSize(
+            text=screen_text, 
+            fontFace=cv.FONT_HERSHEY_SIMPLEX, 
+            fontScale=0.4, 
+            thickness=1)[0]
+            
+        cv.putText(
+            img=frame, 
+            text=screen_text, 
+            org=((frame.shape[1] - screen_text_size[0]) // 2, frame.shape[0] - 20), 
+            fontFace=cv.FONT_HERSHEY_SIMPLEX, 
+            fontScale=0.4, 
+            color=screen_text_color, 
+            thickness=1, 
+            lineType=cv.LINE_AA)
+
+        return {
+            'frame': frame,
+            'normalized_eye_distance': 0,
+            'mesh_points': None,
         }

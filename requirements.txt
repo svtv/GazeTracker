@@ -5,3 +5,5 @@ customtkinter
 ctkchart
 ctkcolorpicker
 keyboard
+pywin32
+tkdial

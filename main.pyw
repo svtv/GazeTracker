@@ -7,13 +7,12 @@ import customtkinter as ctk
 import tkinter as tk
 import traceback
 
+from settings_window import SettingsWindow
 from app_types import Size
 from component_loader import ComponentLoader
 from config import *
 from CTkColorPicker import *
 from overlay import OverlayWindow
-from settings import Settings
-from tkinter import colorchooser
 from widgets.imageknobex import ImageKnobEx
 
 class App(ctk.CTk):
@@ -56,6 +55,14 @@ class App(ctk.CTk):
         """Initialize main interface after loading"""
         # Set main window dimensions
         self.app_geometry = self.settings.get(APP_GEOMETRY_KEY, APP_GEOMETRY)
+        
+        # Restore window position if saved
+        settings_pos = self.settings.get(MAIN_WINDOW_POSITION_KEY, None)
+        if settings_pos:
+            x, y = settings_pos
+            width, height = map(int, self.app_geometry.split('x'))
+            self.app_geometry = f"{width}x{height}+{x}+{y}"
+            
         self.geometry(self.app_geometry)
         self.minsize(APP_MINSIZE_WIDTH, APP_MINSIZE_HEIGHT)
         
@@ -105,10 +112,10 @@ class App(ctk.CTk):
     def _create_main_ui(self):
         """Create main application interface"""
 
+        is_dark_mode = ctk.get_appearance_mode().lower() == "dark"
+
         app_font = self.settings.get(APP_FONT_KEY, APP_FONT)
-        app_font_big = (app_font, 16)
-        app_font_big_bold = (app_font, 16, "bold")
-        app_font_small = (app_font, 13)
+        app_font_small = (app_font, APP_FONT_SIZE)
 
         # Create video frame
         self.video_frame = ctk.CTkFrame(self)
@@ -121,7 +128,7 @@ class App(ctk.CTk):
 
         threshold_inner_frame1 = ctk.CTkFrame(
             master=threshold_frame,
-            fg_color=ctk.ThemeManager.theme["CTkFrame"]["fg_color"][1],
+            fg_color=ctk.ThemeManager.theme["CTkFrame"]["fg_color"][1 if is_dark_mode else 0],
         )
 
         chart_label = ctk.CTkLabel(
@@ -135,7 +142,7 @@ class App(ctk.CTk):
             width=60,
             height=20,
             border_width=0,
-            fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1],
+            fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1 if is_dark_mode else 0],
             text_color="#768df1", # Default color of CTkLine
             textvariable=self.eye_distance,
             font=app_font_small,
@@ -150,9 +157,9 @@ class App(ctk.CTk):
             height=60,
             axis_size=0,
 
-            axis_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1],
-            bg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1],
-            fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1],
+            axis_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1 if is_dark_mode else 0],
+            bg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1 if is_dark_mode else 0],
+            fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1 if is_dark_mode else 0],
 
             x_axis_data="",
             x_axis_values=tuple([0] * CHART_BUFFER_SIZE),
@@ -169,7 +176,7 @@ class App(ctk.CTk):
 
         threshold_inner_frame2 = ctk.CTkFrame(
             master=threshold_frame,
-            fg_color=ctk.ThemeManager.theme["CTkFrame"]["fg_color"][1],
+            fg_color=ctk.ThemeManager.theme["CTkFrame"]["fg_color"][1 if is_dark_mode else 0],
         )
 
         threshold_label = ctk.CTkLabel(
@@ -183,7 +190,7 @@ class App(ctk.CTk):
             width=60,
             height=20,
             border_width=0,
-            fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1],
+            fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1 if is_dark_mode else 0],
             text_color="red",
             textvariable=self.threshold_value,
             font=app_font_small,
@@ -195,7 +202,7 @@ class App(ctk.CTk):
         self.threshold_knob = ImageKnobEx(
             threshold_frame, 
             image="assets/knob4.png",
-            scale_image="assets/knob4_scale.png",
+            scale_image="assets/knob4_scale.png" if is_dark_mode else "assets/knob4_scale_light.png",
             start=STRABISMUS_RANGE_MIN,
             end=STRABISMUS_RANGE_MAX,
             scroll_steps=THRESHOLD_KNOB_STEP,
@@ -208,19 +215,21 @@ class App(ctk.CTk):
         
         threshold_knob_label = ctk.CTkLabel(
             threshold_frame, 
-            text="Use mouse wheel to adjust Alert Threshold.\nHold Ctrl for fine-tuning",
+            text="Use mouse wheel to adjust\nAlert Threshold.\nHold Ctrl for fine-tuning",
             font=app_font_small,
             text_color=ctk.ThemeManager.theme["CTkButton"]["text_color_disabled"][1],
             wraplength=200,
         )
         
         # Create misc frame
-        misc_frame = ctk.CTkFrame(self)
-        # misc_frame = ctk.CTkScrollableFrame(self)
+        # misc_frame = ctk.CTkFrame(self)
+        misc_frame = ctk.CTkTabview(self, width=200)
+        options_tab = misc_frame.add("Options")
+        more_tab = misc_frame.add("More")
 
         # Create show camera switch
         show_camera_switch = ctk.CTkSwitch(
-            master=misc_frame,
+            master=options_tab,
             text="Camera Image",
             variable=self.show_camera,
             command=self._on_show_camera_toggle
@@ -228,89 +237,93 @@ class App(ctk.CTk):
         
         # Create mirror effect switch
         mirror_effect_switch = ctk.CTkSwitch(
-            master=misc_frame,
+            master=options_tab,
             text="Mirror Effect",
             variable=self.mirror_effect,
             command=self._on_mirror_toggle
         )
-        
+
         # Create fullscreen alert switch
         fullscreen_alert_switch = ctk.CTkSwitch(
-            master=misc_frame,
+            master=more_tab,
             text="Fullscreen Alert",
             variable=self.fullscreen_alert,
             command=self._on_fullscreen_alert_toggle
         )
-
-        # Create overlay controls frame
-        self.overlay_controls_frame = ctk.CTkFrame(
-            master=misc_frame,
-            fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1] if self.fullscreen_alert.get() == 0 else ctk.ThemeManager.theme["CTkFrame"]["fg_color"][1],
-        )
-
+        fullscreen_alert_switch.pack(anchor='w', padx=10, pady=10)
+        
+        # Color controls
+        color_frame = ctk.CTkFrame(more_tab)
+        color_frame.pack(fill="x", pady=10)
+        
         overlay_color_label = ctk.CTkLabel(
-            master=self.overlay_controls_frame,
+            master=color_frame,
             text="Color:",
             font=app_font_small,
         )
-
-        self.overlay_color_entry = ctk.CTkEntry(
-            master=self.overlay_controls_frame,
+        overlay_color_label.pack(side="left", padx=10)
+        
+        overlay_color_entry = ctk.CTkEntry(
+            master=color_frame,
             width=60,
             height=20,
             border_width=0,
-            fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1],
+            fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1 if is_dark_mode else 0],
             textvariable=self.overlay_color,
             font=app_font_small,
-            justify=tk.CENTER,
-            state=ctk.DISABLED if self.fullscreen_alert.get() == 0 else ctk.NORMAL  # Initial state
+            justify=tk.CENTER
         )
-
-        self.overlay_color_button = ctk.CTkButton(
-            master=self.overlay_controls_frame,
+        overlay_color_entry.pack(side="left", padx=5)
+        
+        overlay_color_button = ctk.CTkButton(
+            master=color_frame,
             text="...",
             width=20,
             height=20,
             fg_color=self.overlay_color.get(),
-            command=self._on_color_picker_click,
-            state=ctk.DISABLED if self.fullscreen_alert.get() == 0 else ctk.NORMAL  # Initial state
+            command=self._on_color_picker_click
         )
+        overlay_color_button.pack(side="left")
         
-        # Create opacity slider
+        # Opacity controls
+        opacity_frame = ctk.CTkFrame(more_tab)
+        opacity_frame.pack(fill="x", pady=10)
+        
         overlay_opacity_label = ctk.CTkLabel(
-            master=self.overlay_controls_frame,
+            master=opacity_frame,
             text="Opacity:",
             font=app_font_small,
         )
-
-        self.overlay_opacity_entry = ctk.CTkEntry(
-            master=self.overlay_controls_frame,
+        overlay_opacity_label.pack(side="left", padx=10)
+        
+        overlay_opacity_entry = ctk.CTkEntry(
+            master=opacity_frame,
             width=60,
             height=20,
             border_width=0,
-            fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1],
+            fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1 if is_dark_mode else 0],
             textvariable=self.overlay_opacity,
             font=app_font_small,
-            justify=tk.CENTER,
-            state=ctk.DISABLED if self.fullscreen_alert.get() == 0 else ctk.NORMAL  # Initial state
+            justify=tk.CENTER
         )
-
-        self.overlay_opacity_slider = ctk.CTkSlider(
-            master=self.overlay_controls_frame,
+        overlay_opacity_entry.pack(side="left", padx=5)
+        
+        overlay_opacity_slider = ctk.CTkSlider(
+            master=opacity_frame,
             from_=0,
             to=255,
             variable=self.overlay_opacity,
             command=self._on_opacity_change,
-            width=60,
-            state=ctk.DISABLED if self.fullscreen_alert.get() == 0 else ctk.NORMAL  # Initial state
+            width=150
         )
+        overlay_opacity_slider.pack(side="left")
         
         # Pack controls
-        self.video_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.video_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0), pady=5)
         self.video_label.pack(expand=True, fill=tk.BOTH)
         
         # Pack threshold controls
-        threshold_frame.pack(fill='x', padx=10, pady=(10, 5))
+        threshold_frame.pack(fill='x', padx=5, pady=(5, 0))
         
         threshold_inner_frame1.pack(fill='x', padx=5, pady=5)
         threshold_inner_frame1.grid_columnconfigure((0, 1), weight=1)
@@ -328,21 +341,11 @@ class App(ctk.CTk):
         threshold_knob_label.pack(pady=(0, 10), anchor="center")
         
         # Pack misc controls
-        misc_frame.pack(fill='both', expand=True, padx=10, pady=10)
-        show_camera_switch.pack(anchor='w', padx=10, pady=(5, 2))
-        mirror_effect_switch.pack(anchor='w', padx=10, pady=2)
-        fullscreen_alert_switch.pack(anchor='w', padx=10, pady=2)
+        misc_frame.pack(fill='x', padx=5, pady=5)
         
-        # Pack overlay controls frame
-        self.overlay_controls_frame.pack(fill='x', padx=10, pady=(5, 10))
-        self.overlay_controls_frame.grid_columnconfigure((0, 1), weight=1)
-
-        overlay_color_label.grid(row=0, column=0, sticky='w', padx=(5, 0), pady=2)
-        self.overlay_color_entry.grid(row=0, column=1, sticky='ew', padx=(5, 0), pady=2)
-        self.overlay_color_button.grid(row=0, column=2, sticky='w', padx=(5, 5), pady=2)
-        overlay_opacity_label.grid(row=1, column=0, sticky='w', padx=(5, 0), pady=2)
-        self.overlay_opacity_entry.grid(row=1, column=1, padx=(5, 0), pady=2)
-        self.overlay_opacity_slider.grid(row=1, column=2, sticky='ew', padx=(5, 5), pady=2)
+        # Grid controls in options_tab
+        show_camera_switch.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        mirror_effect_switch.grid(row=1, column=0, padx=5, pady=5, sticky="w")
 
     def update_video(self):
         """Update video in real-time"""
@@ -419,6 +422,13 @@ class App(ctk.CTk):
             # Schedule next video update
             self.after(REFRESH_DELAY_MS, self.update_video)
         
+    def destroy(self):
+        # Save window position before closing
+        x = self.winfo_x()
+        y = self.winfo_y()
+        self.settings.set(MAIN_WINDOW_POSITION_KEY, (x, y))
+        super().destroy()
+        
     def on_closing(self):
         """Handle window close"""
         if hasattr(self, 'overlay') and self.overlay:
@@ -475,20 +485,6 @@ class App(ctk.CTk):
         # Save value to settings
         self.settings.set(MIRROR_EFFECT_KEY, self.mirror_effect.get() == 1)
 
-    def _on_fullscreen_alert_toggle(self):
-        """Handle fullscreen alert toggle"""
-        is_fullscreen_alert = self.fullscreen_alert.get() == 1
-        # Update overlay controls state
-        state = ctk.NORMAL if is_fullscreen_alert else ctk.DISABLED
-        self.overlay_controls_frame.configure(
-            fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1] if not is_fullscreen_alert else ctk.ThemeManager.theme["CTkFrame"]["fg_color"][1]
-        )
-        self.overlay_color_button.configure(state=state)
-        self.overlay_opacity_slider.configure(state=state)
-        
-        # Save value to settings
-        self.settings.set(FULLSCREEN_ALERT_KEY, is_fullscreen_alert)
-        
     def _on_color_picker_click(self):
         """Handle color picker button click"""
         pick_color = AskColor(initial_color=self.overlay.get_color_hex())
@@ -497,10 +493,18 @@ class App(ctk.CTk):
             self.overlay.set_color_hex(color)
             # Update button color
             self.overlay_color.set(color)  
-            self.overlay_color_button.configure(fg_color=color)
         
             # Save value to settings
             self.settings.set(OVERLAY_COLOR_KEY, color)
+
+    def _on_fullscreen_alert_toggle(self):
+        """Handle fullscreen alert toggle"""
+        is_fullscreen_alert = self.fullscreen_alert.get() == 1
+        # Update alert settings button state
+        state = ctk.NORMAL if is_fullscreen_alert else ctk.DISABLED
+        
+        # Save value to settings
+        self.settings.set(FULLSCREEN_ALERT_KEY, is_fullscreen_alert)
 
     def _on_opacity_change(self, value):
         """Handle opacity slider change"""
@@ -518,6 +522,4 @@ class App(ctk.CTk):
 if __name__ == "__main__":
     app = App()
     app.protocol("WM_DELETE_WINDOW", app.on_closing)
-    app.mainloop()
-
     app.mainloop()
