@@ -1,257 +1,305 @@
-import customtkinter as ctk
+# Standard library imports
 import importlib
 import queue
 import threading
-
-from .app_types import Size
-from .config import *
-from .settings import Settings
 from tkinter import messagebox
 
-class ComponentLoader:
-    """Class for managing application component loading"""
-    def __init__(self, parent):
+# Third-party imports
+import customtkinter as ctk
+
+# Local imports
+from .config import (
+    APP_FONT, APP_FONT_KEY, APP_FONT_SIZE_TITLE,
+    MIN_DETECTION_CONFIDENCE, MIN_DETECTION_CONFIDENCE_KEY,
+    MIN_TRACKING_CONFIDENCE, MIN_TRACKING_CONFIDENCE_KEY,
+    DEFAULT_WEBCAM
+)
+from .settings import Settings
+
+class LoadingUIComponents:
+    """Class for managing loading UI components"""
+    def __init__(self, parent, settings):
+        self.frame = None
+        self.progress_bars = {}
+        self.status_labels = {}
+        self.default_font = settings.get(APP_FONT_KEY, APP_FONT)
         self.parent = parent
-        
-        self.load_queue = queue.Queue()
+
+
+class LoadingState:
+    """Class for managing loading state"""
+    def __init__(self):
         self.is_loaded = False
-        self.modules = {}
-        self.on_complete_callback = None  # Add field for callback
-        
-        # Flags for tracking component loading
         self.components_loaded = {
             'camera': False,
             'mediapipe': False,
             'other_modules': False
         }
-        
-        # UI components
-        self.loading_frame = None
-        self.progress_bars = {}
-        self.status_labels = {}
-        
-        # Loading results
+        self.load_queue = queue.Queue()
+
+
+class LoadedComponents:
+    """Class for managing loaded components"""
+    def __init__(self):
+        self.modules = {}
         self.cap = None
         self.mp_face_mesh = None
         self.settings = None
-        
-        # Load settings for UI
+
+
+class ComponentLoader:
+    """Class for managing application component loading"""
+    def __init__(self, parent):
+        self.parent = parent
         self.settings = Settings()
-        self.default_font = self.settings.get(APP_FONT_KEY, APP_FONT)
-        
+
+        # Initialize component groups
+        self.ui = LoadingUIComponents(parent, self.settings)
+        self.state = LoadingState()
+        self.loaded = LoadedComponents()
+        self.on_complete_callback = None
+
         # Create loading UI
         self._create_loading_ui()
-        
+
     def start_loading(self, on_complete_callback):
         """Starts the component loading process"""
-        self.on_complete_callback = on_complete_callback  # Save callback
-        
-        # First load core modules and settings
-        other_thread = threading.Thread(target=self._load_other_modules, daemon=True)
-        other_thread.start()
-        
-        # Wait for settings to load
-        while not self.components_loaded.get('other_modules', False):
-            self.parent.update()
-        
-        # Then start other threads
-        camera_thread = threading.Thread(target=self._load_camera, daemon=True)
-        mediapipe_thread = threading.Thread(target=self._load_mediapipe, daemon=True)
-        
-        camera_thread.start()
-        mediapipe_thread.start()
-        
-        # Start status checking
-        self._check_loading_status()  
+        self.on_complete_callback = on_complete_callback
+
+        # Start loading components in background threads
+        for loader in [self._load_camera, self._load_mediapipe, self._load_other_modules]:
+            thread = threading.Thread(target=loader)
+            thread.daemon = True
+            thread.start()
+
+        # Start checking loading status
+        self._check_loading_status()
 
     def _load_camera(self):
         """Camera loading and initialization"""
         try:
-            self.load_queue.put(("message", "Initializing camera..."))
-            self.load_queue.put(("progress_update", "camera", 0.2))
-            
+            self.state.load_queue.put(("message", "Initializing camera..."))
+            self.state.load_queue.put(("progress_update", "camera", 0.2))
+
+            # Import OpenCV
             cv = importlib.import_module('cv2')
-            self.modules['cv2'] = cv
-            self.load_queue.put(("progress_update", "camera", 0.4))
-            
-            self.cap = cv.VideoCapture(DEFAULT_WEBCAM)
-            if not self.cap.isOpened():
-                raise Exception("Failed to connect to camera")
-            self.load_queue.put(("progress_update", "camera", 0.6))
-            
+            self.loaded.modules['cv2'] = cv
+            self.state.load_queue.put(("progress_update", "camera", 0.4))
+
+            # Initialize camera
+            self.loaded.cap = cv.VideoCapture(DEFAULT_WEBCAM)
+            if not self.loaded.cap.isOpened():
+                raise RuntimeError("Failed to connect to camera")
+            self.state.load_queue.put(("progress_update", "camera", 0.6))
+
             # Set camera parameters
-            self.cap.set(cv.CAP_PROP_FRAME_WIDTH, 1280)
-            self.cap.set(cv.CAP_PROP_FRAME_HEIGHT, 720)
-            self.cap.set(cv.CAP_PROP_FPS, 30)
-            self.load_queue.put(("progress_update", "camera", 0.8))
-            
-            self.components_loaded['camera'] = True
-            self.load_queue.put(("progress_update", "camera", 1.0))
-        except Exception as e:
-            self.load_queue.put(("error", f"Camera initialization error: {str(e)}"))
-    
+            ret1 = self.loaded.cap.set(cv.CAP_PROP_FRAME_WIDTH, 1280)
+            ret2 = self.loaded.cap.set(cv.CAP_PROP_FRAME_HEIGHT, 720)
+            ret3 = self.loaded.cap.set(cv.CAP_PROP_FPS, 30)
+
+            # Verify camera settings
+            if not all([ret1, ret2, ret3]):
+                raise RuntimeError("Failed to set camera parameters")
+
+            # Test camera capture
+            ret, frame = self.loaded.cap.read()
+            if not ret or frame is None:
+                raise RuntimeError("Failed to capture frame from camera")
+
+            self.state.load_queue.put(("progress_update", "camera", 0.8))
+
+            self.state.components_loaded['camera'] = True
+            self.state.load_queue.put(("progress_update", "camera", 1.0))
+
+        except ImportError as e:
+            self.state.load_queue.put(("error", f"Failed to import OpenCV: {str(e)}"))
+        except (cv.error, OSError) as e:
+            self.state.load_queue.put(("error", f"Camera hardware error: {str(e)}"))
+        except RuntimeError as e:
+            self.state.load_queue.put(("error", f"Camera initialization error: {str(e)}"))
+
     def _load_mediapipe(self):
         """Loading MediaPipe and initializing FaceMesh"""
         try:
-            self.load_queue.put(("message", "Loading MediaPipe..."))
-            self.load_queue.put(("progress_update", "mediapipe", 0.1))
-            
+            self.state.load_queue.put(("message", "Loading MediaPipe..."))
+            self.state.load_queue.put(("progress_update", "mediapipe", 0.1))
+
+            # Import MediaPipe
             mp = importlib.import_module('mediapipe')
-            self.modules['mediapipe'] = mp
-            self.load_queue.put(("progress_update", "mediapipe", 0.4))
-            
-            self.mp_face_mesh = mp.solutions.face_mesh.FaceMesh(
+            self.loaded.modules['mediapipe'] = mp
+            self.state.load_queue.put(("progress_update", "mediapipe", 0.4))
+
+            # Initialize FaceMesh
+            self.loaded.mp_face_mesh = mp.solutions.face_mesh.FaceMesh(
                 max_num_faces=1,
                 refine_landmarks=True,
                 min_detection_confidence=self.settings.get(MIN_DETECTION_CONFIDENCE_KEY, MIN_DETECTION_CONFIDENCE),
                 min_tracking_confidence=self.settings.get(MIN_TRACKING_CONFIDENCE_KEY, MIN_TRACKING_CONFIDENCE),
             )
-            self.load_queue.put(("progress_update", "mediapipe", 0.7))
-            
-            self.components_loaded['mediapipe'] = True
-            self.load_queue.put(("progress_update", "mediapipe", 1.0))
-        except Exception as e:
-            self.load_queue.put(("error", f"MediaPipe initialization error: {str(e)}"))
-    
+            self.state.load_queue.put(("progress_update", "mediapipe", 0.7))
+
+            self.state.components_loaded['mediapipe'] = True
+            self.state.load_queue.put(("progress_update", "mediapipe", 1.0))
+
+        except ImportError as e:
+            self.state.load_queue.put(("error", f"Failed to import MediaPipe: {str(e)}"))
+        except ValueError as e:
+            self.state.load_queue.put(("error", f"Invalid MediaPipe configuration: {str(e)}"))
+        except RuntimeError as e:
+            self.state.load_queue.put(("error", f"MediaPipe initialization error: {str(e)}"))
+
     def _load_other_modules(self):
         """Loading other modules"""
         try:
             # Load settings
-            self.load_queue.put(("message", "Loading settings..."))
-            self.settings = Settings()
-            self.load_queue.put(("progress_update", "other_modules", 0.2))
-            
-            # Load additional modules
-            self.load_queue.put(("message", "Loading additional modules..."))
-            self.modules['numpy'] = importlib.import_module('numpy')
-            self.load_queue.put(("progress_update", "other_modules", 0.4))
-            
-            self.modules['PIL'] = importlib.import_module('PIL.Image')
-            self.load_queue.put(("progress_update", "other_modules", 0.5))
-            
-            # Import local modules
-            self.load_queue.put(("message", "Loading image processor..."))
-            self.modules['image_processor'] = importlib.import_module('src.image_processor')
-            self.load_queue.put(("progress_update", "other_modules", 0.7))
-            
-            self.components_loaded['other_modules'] = True
-            self.load_queue.put(("progress_update", "other_modules", 1.0))
+            self.state.load_queue.put(("message", "Loading settings..."))
+            self.loaded.settings = Settings()
+            self.state.load_queue.put(("progress_update", "other_modules", 0.2))
 
-        except Exception as e:
-            self.load_queue.put(("error", f"Module loading error: {str(e)}"))
-    
+            # Load additional modules
+            self.state.load_queue.put(("message", "Loading additional modules..."))
+            self.loaded.modules['numpy'] = importlib.import_module('numpy')
+            self.state.load_queue.put(("progress_update", "other_modules", 0.4))
+
+            self.loaded.modules['PIL'] = importlib.import_module('PIL.Image')
+            self.state.load_queue.put(("progress_update", "other_modules", 0.5))
+
+            # Import local modules
+            self.state.load_queue.put(("message", "Loading image processor..."))
+            self.loaded.modules['image_processor'] = importlib.import_module('src.image_processor')
+            self.state.load_queue.put(("progress_update", "other_modules", 0.7))
+
+            self.state.components_loaded['other_modules'] = True
+            self.state.load_queue.put(("progress_update", "other_modules", 1.0))
+
+        except ModuleNotFoundError as e:
+            self.state.load_queue.put(("error", f"Required module not found: {str(e)}"))
+        except ImportError as e:
+            self.state.load_queue.put(("error", f"Failed to import module: {str(e)}"))
+        except AttributeError as e:
+            self.state.load_queue.put(("error", f"Module missing required attributes: {str(e)}"))
+        except RuntimeError as e:
+            self.state.load_queue.put(("error", f"Settings initialization error: {str(e)}"))
+
     def _create_loading_ui(self):
         """Creates loading indicator UI"""
-        # Central loading frame
-        self.loading_frame = ctk.CTkFrame(self.parent, width=LOADING_WINDOW_WIDTH, height=LOADING_WINDOW_HEIGHT)
-        self.loading_frame.place(relx=0.5, rely=0.5, anchor="center")
-        self.loading_frame.pack_propagate(False)  # Prevent frame size changes
-        
-        # Add inner padding
-        content_frame = ctk.CTkFrame(self.loading_frame)
-        content_frame.pack(fill='both', expand=True, padx=5, pady=5)
-        
-        # Add title
-        title_label = ctk.CTkLabel(
-            content_frame, 
-            text="Loading Components",
-            font=(self.default_font, APP_FONT_SIZE_TITLE, "bold")
-        )
-        title_label.pack(pady=(5, 10), padx=15)
-        
-        # Create frames for each component
-        components = {
+        # Create and configure loading frame
+        self.ui.frame = ctk.CTkFrame(self.parent)
+        self.ui.frame.pack(expand=True, fill="both", padx=20, pady=20)
+
+        # Create loading indicators for each component
+        for idx, (component_id, component_name) in enumerate({
             'camera': 'Camera',
             'mediapipe': 'MediaPipe',
             'other_modules': 'Additional Modules'
-        }
-        
-        for component_id, component_name in components.items():
-            # Create component frame
-            component_frame = ctk.CTkFrame(content_frame)
-            component_frame.pack(fill='x', padx=15, pady=2)
-            
-            # Add component name label
+        }.items()):
+            component_frame = ctk.CTkFrame(self.ui.frame)
+            component_frame.pack(fill='x', padx=15, pady=(20 if idx == 0 else 10, 0))
+
+            # Create label
             component_label = ctk.CTkLabel(
-                component_frame, 
+                component_frame,
                 text=component_name,
-                anchor='w',
-                font=(self.default_font, 12)
+                anchor="w",
+                font=(self.ui.default_font, APP_FONT_SIZE_TITLE)
             )
             component_label.pack(side='left', padx=8, pady=4)
-            
+
             # Add status
             status_label = ctk.CTkLabel(
-                component_frame, 
+                component_frame,
                 text="Waiting...",
                 text_color='gray',
                 anchor='e',
-                font=(self.default_font, 11)
+                font=(self.ui.default_font, 13)
             )
             status_label.pack(side='right', padx=8, pady=4)
-            self.status_labels[component_id] = status_label
-            
+            self.ui.status_labels[component_id] = status_label
+
             # Create progress bar
-            progress_bar = ctk.CTkProgressBar(content_frame, width=340)
-            progress_bar.pack(padx=15, pady=(0, 6))
-            progress_bar.set(0)
-            self.progress_bars[component_id] = progress_bar
-        
+            progress = ctk.CTkProgressBar(self.ui.frame, width=340)
+            progress.set(0)
+            progress.pack(padx=15, pady=(0, 6))
+            self.ui.progress_bars[component_id] = progress
+
+    def _handle_progress_update(self, component, value):
+        """Handle progress update message"""
+        if component in self.ui.progress_bars:
+            self.ui.progress_bars[component].set(value)
+            # Update status text based on progress
+            if value >= 1.0:
+                self.ui.status_labels[component].configure(
+                    text="Done",
+                    text_color="green"
+                )
+            else:
+                self.ui.status_labels[component].configure(
+                    text=f"{int(value * 100)}%",
+                    text_color="gray"
+                )
+
+    def _handle_status_message(self, message):
+        """Handle status message"""
+        # Find the component this message relates to
+        for component_id, label in self.ui.status_labels.items():
+            if component_id.lower() in message.lower():
+                label.configure(
+                    text=message,
+                    text_color="gray"
+                )
+                break
+
+    def _handle_error(self, error_message):
+        """Handle error message"""
+        messagebox.showerror("Error", error_message)
+        self.parent.quit()
+
+    def _handle_loading_complete(self):
+        """Handle completion of loading"""
+        # Destroy loading UI
+        if self.ui.frame:
+            self.ui.frame.destroy()
+            self.ui.frame = None
+
+        # Call the completion callback
+        self.on_complete_callback(
+            self.loaded.modules,
+            self.loaded.cap,
+            self.loaded.mp_face_mesh,
+            self.loaded.settings,
+        )
+
     def _check_loading_status(self):
         """Checks background loading status"""
         try:
-            while True:  # Process all messages in queue
-                msg_type, *msg_data = self.load_queue.get_nowait()
-                
+            while True:
+                # Get message from queue
+                msg_type, *msg_data = self.state.load_queue.get_nowait()
+
+                # Process message based on type
                 if msg_type == "progress_update":
-                    component, value = msg_data
-                    # Update progress of specific component
-                    if component in self.progress_bars:
-                        self.progress_bars[component].set(value)
-                        if value >= 1.0:
-                            self.status_labels[component].configure(
-                                text="Done",
-                                text_color='green'
-                            )
-                            self.progress_bars[component].lower()
-                        else:
-                            self.status_labels[component].configure(
-                                text=f"{int(value * 100)}%",
-                                text_color='gray'
-                            )
+                    self._handle_progress_update(msg_data[0], msg_data[1])
                 elif msg_type == "message":
-                    # Update status of component related to message
-                    for component_id, component_name in {
-                        'camera': 'Camera',
-                        'mediapipe': 'MediaPipe',
-                        'other_modules': 'Additional Modules'
-                    }.items():
-                        if component_name.lower() in msg_data[0].lower():
-                            self.status_labels[component_id].configure(text=msg_data[0])
-                            break
+                    self._handle_status_message(msg_data[0])
                 elif msg_type == "error":
-                    messagebox.showerror("Error", msg_data[0])
-                    self.parent.quit()
+                    self._handle_error(msg_data[0])
                     return
-                
+
                 # Check if all components are loaded
-                if all(self.components_loaded.values()):
-                    self.is_loaded = True
-                    # Call the completion callback
-                    self.on_complete_callback(
-                        self.modules,
-                        self.cap,
-                        self.mp_face_mesh,
-                        self.settings,
-                    )
+                if all(self.state.components_loaded.values()):
+                    self.state.is_loaded = True
+                    self._handle_loading_complete()
                     return
-                
-                self.load_queue.task_done()
-                
+
+                self.state.load_queue.task_done()
+
         except queue.Empty:
             # If queue is empty, check again after 100ms
-            if not self.is_loaded:
+            if not self.state.is_loaded:
                 self.parent.after(100, self._check_loading_status)
-        except Exception as e:
-            messagebox.showerror("Error", f"Unexpected error: {str(e)}")
-            self.parent.quit()
+
+        except (AttributeError, TypeError) as e:
+            self._handle_error(f"UI component error: {str(e)}")
+
+        except RuntimeError as e:
+            self._handle_error(f"Callback error: {str(e)}")

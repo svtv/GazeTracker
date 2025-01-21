@@ -1,7 +1,6 @@
-import customtkinter as ctk
-import keyboard
 import tkinter as tk
-from imageknobex import ImageKnobEx
+import customtkinter as ctk
+from .imageknobex import ImageKnobEx
 
 class App(ctk.CTk):
     def __init__(self):
@@ -21,14 +20,14 @@ class App(ctk.CTk):
 
         # Example of adding a widget
         self.label = ctk.CTkLabel(
-            self.main_frame, 
-            text="Image Knob Test App", 
+            self.main_frame,
+            text="Image Knob Test App",
             font=("Helvetica", 20)
         )
         self.label.pack(pady=20)
 
         self.threshold_knob = ImageKnobEx(
-            self.main_frame, 
+            self.main_frame,
             image="assets/knob4.png",
             scale_image="assets/knob4_scale.png",
             start=0.40,
@@ -44,10 +43,10 @@ class App(ctk.CTk):
 
         self.threshold_mutex = False
         self.threshold_value = ctk.StringVar()
-        self.threshold_value.trace_add("write", self.update_threshold_by_entry)  
+        self.threshold_value.trace_add("write", self.update_threshold_by_entry)
 
         self.threshold_entry = ctk.CTkEntry(
-            self.main_frame, 
+            self.main_frame,
             width=100,
             border_width=0,
             fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1],
@@ -59,17 +58,17 @@ class App(ctk.CTk):
 
         self.update_threshold_by_knob()
 
-    def update_threshold_by_entry(self, *args):
+    def update_threshold_by_entry(self, *args): # pylint: disable=unused-argument
         try:
             self.threshold_mutex = True
             value = max(
                 min(
-                    float(self.threshold_value.get()), 
-                    self.threshold_knob.max), 
+                    float(self.threshold_value.get()),
+                    self.threshold_knob.max),
                 self.threshold_knob.start)
             self.threshold_knob.set(value)
         except ValueError:
-            pass  
+            pass
         finally:
             self.threshold_mutex = False
 

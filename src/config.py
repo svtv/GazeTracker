@@ -138,3 +138,6 @@ L_H_LEFT = [33]  # Left eye left corner
 L_H_RIGHT = [133]  # Left eye right corner
 R_H_LEFT = [362]  # Right eye left corner
 R_H_RIGHT = [263]  # Right eye right corner
+
+# Face Selected points indices for Head Pose Estimation | Индексы выбранных точек лица для определения положения головы
+HEAD_INDICES_POSE = [1, 33, 61, 199, 263, 291]

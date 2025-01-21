@@ -1,0 +1,30 @@
+[MASTER]
+# Добавляем пути к исходникам
+init-hook='import sys; sys.path.append(".")'
+
+# Игнорируем некоторые предупреждения
+disable=
+    C0111, # missing-docstring
+    C0103, # invalid-name
+    W0511, # fixme
+    W0603, # global-statement
+    R0903, # too-few-public-methods
+
+# Максимальная длина строки
+max-line-length=120
+
+[FORMAT]
+# Отступы в 4 пробела
+indent-string='    '
+
+[MESSAGES CONTROL]
+# Отключаем некоторые проверки для внешних библиотек
+ignored-modules=cv2,numpy,PIL,mediapipe,customtkinter,CTkColorPicker
+
+[BASIC]
+# Разрешаем однобуквенные переменные
+variable-rgx=[a-z_][a-z0-9_]{0,30}$
+
+[SIMILARITIES]
+# Минимальное количество строк для определения дубликата
+min-similarity-lines=6
