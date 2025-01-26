@@ -10,7 +10,8 @@ from .config import (
     SHOW_CAMERA, SHOW_CAMERA_KEY,
     MIRROR_EFFECT_ENABLED, MIRROR_EFFECT_KEY,
     FULLSCREEN_ALERT_ENABLED, FULLSCREEN_ALERT_KEY,
-    STRABISMUS_THRESHOLD, STRABISMUS_THRESHOLD_KEY
+    STRABISMUS_THRESHOLD, STRABISMUS_THRESHOLD_KEY,
+    APPEARANCE_MODE_KEY, APPEARANCE_MODE_LIGHT
 )
 
 class Settings:
@@ -36,27 +37,35 @@ class Settings:
         except FileNotFoundError:
             self._settings = self._create_default_settings()
 
-    def get(self, path: str, default: Any = None) -> Any:
+    @classmethod
+    def get(cls, path: str, default: Any = None) -> Any:
         """
         Gets setting value by path in format 'section.subsection.key'
-        Example: settings.get('app.geometry')
+        Example: Settings.get('app.geometry')
         """
+        if cls._instance is None:
+            cls()
+
         try:
-            value = self._settings
+            value = cls._instance._settings
             for key in path.split('.'):
                 value = value[key]
             return value
         except (KeyError, TypeError):
             return default
 
-    def set(self, path: str, value: Any) -> None:
+    @classmethod
+    def set(cls, path: str, value: Any) -> None:
         """
         Sets setting value and saves to file only if:
         1. Path doesn't exist in settings
         2. Value at specified path differs from new value
         """
+        if cls._instance is None:
+            cls()
+
         # Check current value
-        current_value = self.get(path)
+        current_value = cls.get(path)
 
         # If value is the same - don't save
         if current_value == value:
@@ -64,7 +73,7 @@ class Settings:
 
         # If value is different or doesn't exist - update
         keys = path.split('.')
-        current = self._settings
+        current = cls._instance._settings
 
         # Go through all keys except the last one
         for key in keys[:-1]:
@@ -78,12 +87,14 @@ class Settings:
         # Save to file
         settings_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'settings.json')
         with open(settings_path, 'w', encoding='utf-8') as f:
-            json.dump(self._settings, f, indent=4)
+            json.dump(cls._instance._settings, f, indent=4)
 
-    @property
-    def all(self) -> Dict[str, Any]:
+    @classmethod
+    def all(cls) -> Dict[str, Any]:
         """Returns all settings"""
-        return self._settings.copy()
+        if cls._instance is None:
+            cls()
+        return cls._instance._settings.copy()
 
     @staticmethod
     def _create_default_settings() -> Dict[str, Any]:
@@ -98,6 +109,7 @@ class Settings:
             (MIRROR_EFFECT_KEY, MIRROR_EFFECT_ENABLED),
             (FULLSCREEN_ALERT_KEY, FULLSCREEN_ALERT_ENABLED),
             (STRABISMUS_THRESHOLD_KEY, STRABISMUS_THRESHOLD),
+            (APPEARANCE_MODE_KEY, APPEARANCE_MODE_LIGHT),
         ]
 
         # Build settings dictionary from pairs

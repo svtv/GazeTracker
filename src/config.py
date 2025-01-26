@@ -31,6 +31,7 @@ SETTINGS_WINDOW_GEOMETRY = f"{SETTINGS_WINDOW_WIDTH}x{SETTINGS_WINDOW_HEIGHT}"
 MAIN_WINDOW_POSITION_KEY = 'app.window_position'
 LOADING_WINDOW_POSITION_KEY = 'app.loading_window_position'
 SETTINGS_WINDOW_POSITION_KEY = 'app.settings_window_position'
+COLOR_SETTINGS_WINDOW_POSITION_KEY = 'app.color_settings_window_position'
 
 # Threshold knob configuration
 THRESHOLD_KNOB_STEP = -0.010
@@ -61,48 +62,23 @@ REFRESH_DELAY_MS = 100
 # CHART_BUFFER_SIZE: Size of the buffer for the line chart
 CHART_BUFFER_SIZE = 100
 
-# BACKGROUND_COLOR: BGR tuple for the background color (default is dark gray)
-BACKGROUND_COLOR = (64, 64, 64)  # Dark gray
-# BACKGROUND_COLOR = (128, 128, 128)  # Medium gray
-# BACKGROUND_COLOR = (32, 32, 32)  # Very dark gray
-# BACKGROUND_COLOR = (96, 96, 96)  # Gray
-
-TEXT_COLOR = (0, 0, 255)  # Red (BGR)
-MESH_COLOR = (0, 255, 0)  # Green (BGR)
-IRIS_COLOR = (255, 0, 255)  # Purple (BGR)
-EYE_INNER_CORNER_COLOR = (255, 255, 255)  # White (BGR)
-EYE_OUTER_CORNER_COLOR = (255, 255, 0)  # Cyan (BGR)
-
-STRABISMUS_DETECTED_COLOR = (255, 0, 0)  # Blue (BGR)
-
-# Color scheme 1
-BACKGROUND_COLOR = (59, 7, 0)
-MESH_COLOR = (210, 194, 51)
-IRIS_COLOR = (247, 221, 7)
-
-# Color scheme 2
-BACKGROUND_COLOR = (12, 41, 81)
-TEXT_COLOR = (65, 106, 165)
-MESH_COLOR = (32, 204, 224)
-IRIS_COLOR = (187, 223, 221)
-EYE_INNER_CORNER_COLOR = (242, 250, 229)
-EYE_OUTER_CORNER_COLOR = (226, 164, 141)
-
 # Color scheme https://coolors.co/0c2951-46aafe-f6e27f-a30b37-a9fff7
-# generated from BACKGROUND_COLOR = (12, 41, 81)
-BACKGROUND_COLOR = (12, 41, 81)
-BACKGROUND_DARK_COLOR = (8, 27, 53)
-# BACKGROUND_DARK_COLOR = (11, 36, 71)
-TEXT_COLOR = (169, 255, 247)
-MESH_COLOR = (70, 170, 254)
-MESH_LIGHT_COLOR = (174, 218, 255)
-MESH_DARK_COLOR = (1, 112, 203)
-IRIS_COLOR = (246, 226, 127)
-EYE_INNER_CORNER_COLOR = (163, 11, 55)
-EYE_OUTER_CORNER_COLOR = (226, 164, 141)
-YELLOW_COLOR = (246, 226, 127)
-RED_COLOR = (163, 11, 55)
-RED_LIGHT_COLOR = (248, 160, 185)
+# Все цвета в HEX формате
+BACKGROUND_COLOR = "#0C2951"  # RGB(12, 41, 81)
+BACKGROUND_DARK_COLOR = "#081B35"  # RGB(8, 27, 53)
+TEXT_COLOR = "#A9FFF7"  # RGB(169, 255, 247)
+MESH_COLOR = "#46AAFE"  # RGB(70, 170, 254)
+MESH_LIGHT_COLOR = "#AEDAFF"  # RGB(174, 218, 255)
+MESH_DARK_COLOR = "#0170CB"  # RGB(1, 112, 203)
+IRIS_COLOR = "#F6E27F"  # RGB(246, 226, 127)
+EYE_INNER_CORNER_COLOR = "#A30B37"  # RGB(163, 11, 55)
+EYE_OUTER_CORNER_COLOR = "#A30B37"  # RGB(163, 11, 55)
+
+# Цвета для особых состояний
+STRABISMUS_DETECTED_COLOR = "#FF0000"  # Красный
+YELLOW_COLOR = "#FFFF00"  # Желтый для текста "No face detected"
+RED_COLOR = "#A30B37"  # RGB(163, 11, 55)
+RED_LIGHT_COLOR = "#F8A0B9"  # RGB(248, 160, 185)
 
 # DEFAULT_WEBCAM: Default camera source index. '0' usually refers to the built-in webcam.
 DEFAULT_WEBCAM = 0
@@ -141,3 +117,7 @@ R_H_RIGHT = [263]  # Right eye right corner
 
 # Face Selected points indices for Head Pose Estimation | Индексы выбранных точек лица для определения положения головы
 HEAD_INDICES_POSE = [1, 33, 61, 199, 263, 291]
+
+# Theme configuration
+APPEARANCE_MODE_KEY = 'app.appearance_mode'
+APPEARANCE_MODE_LIGHT = False

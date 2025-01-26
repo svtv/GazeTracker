@@ -6,22 +6,57 @@ import numpy as np
 from .config import (
     BACKGROUND_COLOR, BACKGROUND_DARK_COLOR,
     MESH_COLOR, MESH_LIGHT_COLOR, MESH_DARK_COLOR,
-    LEFT_EYE_INNER_CORNER, RIGHT_EYE_INNER_CORNER,
-    LEFT_EYE_OUTER_CORNER, RIGHT_EYE_OUTER_CORNER,
     LEFT_IRIS, RIGHT_IRIS,
     L_H_LEFT, L_H_RIGHT,
     R_H_LEFT, R_H_RIGHT,
-    YELLOW_COLOR,
 )
 
 class ImageProcessor:
     """Image processing and enhancement class"""
+
+    def __init__(self, app, modules):
+        self.app = app
+        self.modules = modules
+
+        self.background_dark_color = BACKGROUND_DARK_COLOR
+        self.mesh_dark_color = MESH_DARK_COLOR
+        self.mesh_color = MESH_COLOR
+        self.mesh_light_color = MESH_LIGHT_COLOR
+        self.background_color = BACKGROUND_COLOR
+        self.brightness_increase = 40
+
+    def update_colors(self, color_name, hex_color):
+        """Update color values"""
+        rgb_color = self.hex_to_rgb(hex_color)
+        # bgr_color = self.rgb_to_bgr(rgb_color)
+
+        if color_name == "Background Dark":
+            self.background_dark_color = hex_color
+        elif color_name == "Mesh Dark":
+            self.mesh_dark_color = hex_color
+        elif color_name == "Mesh":
+            self.mesh_color = hex_color
+        elif color_name == "Mesh Light":
+            self.mesh_light_color = hex_color
+        elif color_name == "Background":
+            self.background_color = hex_color
+
+    def update_brightness(self, value):
+        """Update brightness increase value"""
+        self.brightness_increase = int(value)
 
     @staticmethod
     def hex_to_rgb(hex_color):
         """Convert hex color to RGB"""
         hex_color = hex_color.lstrip('#')
         return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+    @staticmethod
+    def rgb_to_hex(rgb_color):
+        """Convert RGB color to HEX"""
+        if isinstance(rgb_color, str) and rgb_color.startswith('#'):
+            return rgb_color
+        return f'#{rgb_color[0]:02x}{rgb_color[1]:02x}{rgb_color[2]:02x}'
 
     @staticmethod
     def rgb_to_bgr(rgb_color):
@@ -254,48 +289,28 @@ class ImageProcessor:
         b = max(0, int(b * (1 - factor)))
         return (r, g, b)
 
-    @staticmethod
-    def process_face_mesh(app, frame, mesh_results):
-        """Process face mesh detection results and draw on frame
-
-        Args:
-            app: Application instance
-            frame: Input frame
-            mesh_results: Face mesh detection results
-
-        Returns:
-            dict: Processing results containing frame and detection flags
-        """
-        if mesh_results.multi_face_landmarks:
-            return ImageProcessor._process_face_mesh_impl(
-                app, frame, mesh_results
-            )
-        return ImageProcessor._process_face_mesh_noface(app, frame)
-
-    @staticmethod
-    def _prepare_frame(app, frame):
+    def _prepare_frame(self, frame):
         """Prepare frame for face mesh processing"""
-        if not app.show_camera.get():
-            background_rgb = BACKGROUND_COLOR
-            background_bgr = ImageProcessor.rgb_to_bgr(background_rgb)
+        if not self.app.app_state.show_camera.get():
+            background_rgb = self.hex_to_rgb(self.background_color)
+            background_bgr = self.rgb_to_bgr(background_rgb)
 
-            return ImageProcessor.create_gradient_background(
+            return self.create_gradient_background(
                 height=frame.shape[0],
                 width=frame.shape[1],
-                base_color=background_bgr
+                base_color=background_bgr,
+                brightness_increase=self.brightness_increase
             )
         return frame
 
-    @staticmethod
-    def _process_landmarks(face_landmarks, img_w, img_h):
+    def _process_landmarks(self, face_landmarks, img_w, img_h):
         """Convert landmarks to numpy array and get mesh points"""
         return np.array([
             [int(point.x * img_w), int(point.y * img_h)]
             for point in face_landmarks.landmark
         ])
 
-    @staticmethod
-    def _process_eyes(mesh_points):
+    def _process_eyes(self, mesh_points):
         """Process eyes and calculate normalized eye distance"""
         # Process eyes
         (l_cx, l_cy), l_radius = cv.minEnclosingCircle(mesh_points[LEFT_IRIS])
@@ -310,8 +325,7 @@ class ImageProcessor:
 
         return center_left, center_right, l_radius, r_radius, normalized_eye_distance
 
-    @staticmethod
-    def _center_mesh_points(mesh_points, center_left, center_right, img_w, img_h):
+    def _center_mesh_points(self, mesh_points, center_left, center_right, img_w, img_h):
         """Center mesh points when show_camera is False"""
         # Calculate offset
         window_center_x = img_w // 2
@@ -331,31 +345,29 @@ class ImageProcessor:
 
         return mesh_points, center_left, center_right
 
-    @staticmethod
-    def _draw_mesh(frame, mesh_points, center_left, center_right, l_radius, r_radius):
+    def _draw_mesh(self, frame, mesh_points, center_left, center_right, l_radius, r_radius):
         """Draw mesh and eyes on frame"""
         # Draw mesh
-        mesh_color = ImageProcessor.rgb_to_bgr(MESH_COLOR)
+        mesh_rgb = self.hex_to_rgb(self.mesh_color)
+        mesh_color = self.rgb_to_bgr(mesh_rgb)
         for point in mesh_points:
             cv.circle(frame, tuple(point), 1, mesh_color, -1)
 
         # Draw eyes
-        iris_color = ImageProcessor.rgb_to_bgr(MESH_LIGHT_COLOR)
-        eye_inner_corner_color = ImageProcessor.rgb_to_bgr(MESH_LIGHT_COLOR)
-        eye_outer_corner_color = ImageProcessor.rgb_to_bgr(MESH_LIGHT_COLOR)
+        # Convert colors to BGR
+        mesh_light_rgb = self.hex_to_rgb(self.mesh_light_color)
+        iris_color = self.rgb_to_bgr(mesh_light_rgb)
+        # eye_inner_corner_color = iris_color
+        # eye_outer_corner_color = iris_color
 
         cv.circle(frame, center_left, int(l_radius), iris_color, 2, cv.LINE_AA)
         cv.circle(frame, center_right, int(r_radius), iris_color, 2, cv.LINE_AA)
-        cv.circle(frame, mesh_points[LEFT_EYE_INNER_CORNER][0], 3, eye_inner_corner_color, -1, cv.LINE_AA)
-        cv.circle(frame, mesh_points[LEFT_EYE_OUTER_CORNER][0], 3, eye_outer_corner_color, -1, cv.LINE_AA)
-        cv.circle(frame, mesh_points[RIGHT_EYE_INNER_CORNER][0], 3, eye_inner_corner_color, -1, cv.LINE_AA)
-        cv.circle(frame, mesh_points[RIGHT_EYE_OUTER_CORNER][0], 3, eye_outer_corner_color, -1, cv.LINE_AA)
 
-    @staticmethod
-    def _draw_text(frame, app, normalized_eye_distance):
+    def _draw_text(self, frame, normalized_eye_distance):
         """Draw eye distance text on frame"""
-        screen_text = app.format_eye_distance(normalized_eye_distance)
-        screen_text_color = ImageProcessor.rgb_to_bgr(MESH_DARK_COLOR)
+        screen_text = self.app.format_eye_distance(normalized_eye_distance)
+        mesh_dark_rgb = self.hex_to_rgb(self.mesh_dark_color)
+        screen_text_color = self.rgb_to_bgr(mesh_dark_rgb)
 
         screen_text_size = cv.getTextSize(
             text=screen_text,
@@ -373,18 +385,17 @@ class ImageProcessor:
             thickness=1,
             lineType=cv.LINE_AA)
 
-    @staticmethod
-    def _process_face_mesh_impl(app, frame, mesh_results):
+    def _process_face_mesh_impl(self, frame, mesh_results):
         """Process face mesh detection results and draw on frame"""
         # Get frame dimensions
         img_h, img_w = frame.shape[:2]
 
         # Prepare frame
-        frame = ImageProcessor._prepare_frame(app, frame)
+        frame = self._prepare_frame(frame)
 
         # Process landmarks
         face_landmarks = mesh_results.multi_face_landmarks[0]
-        mesh_points = ImageProcessor._process_landmarks(face_landmarks, img_w, img_h)
+        mesh_points = self._process_landmarks(face_landmarks, img_w, img_h)
 
         # Process eyes
         (
@@ -393,12 +404,12 @@ class ImageProcessor:
             l_radius,
             r_radius,
             normalized_eye_distance
-        ) = ImageProcessor._process_eyes(mesh_points)
+        ) = self._process_eyes(mesh_points)
 
         # Center mesh points if needed
-        if not app.show_camera.get():
+        if not self.app.app_state.show_camera.get():
             mesh_points, center_left, center_right = (
-                ImageProcessor._center_mesh_points(
+                self._center_mesh_points(
                     mesh_points,
                     center_left,
                     center_right,
@@ -408,10 +419,10 @@ class ImageProcessor:
             )
 
         # Draw mesh and eyes
-        ImageProcessor._draw_mesh(frame, mesh_points, center_left, center_right, l_radius, r_radius)
+        self._draw_mesh(frame, mesh_points, center_left, center_right, l_radius, r_radius)
 
         # Draw text
-        ImageProcessor._draw_text(frame, app, normalized_eye_distance)
+        self._draw_text(frame, normalized_eye_distance)
 
         return {
             'frame': frame,
@@ -419,21 +430,22 @@ class ImageProcessor:
             'mesh_points': mesh_points,
         }
 
-    @staticmethod
-    def _process_face_mesh_noface(app, frame):
+    def _process_face_mesh_noface(self, frame):
 
         screen_text = "No face detected"
-        screen_text_color = ImageProcessor.rgb_to_bgr(YELLOW_COLOR)
+        mesh_dark_rgb = self.hex_to_rgb(self.mesh_dark_color)
+        screen_text_color = self.rgb_to_bgr(mesh_dark_rgb)
 
         # If show_camera is off, create a gradient background
-        if not app.show_camera.get():
-            background_rgb = BACKGROUND_DARK_COLOR
-            background_bgr = ImageProcessor.rgb_to_bgr(background_rgb)
+        if not self.app.app_state.show_camera.get():
+            background_dark_rgb = self.hex_to_rgb(self.background_dark_color)
+            background_dark_bgr = self.rgb_to_bgr(background_dark_rgb)
 
-            frame = ImageProcessor.create_gradient_background(
+            frame = self.create_gradient_background(
                 height=frame.shape[0],
                 width=frame.shape[1],
-                base_color=background_bgr
+                base_color=background_dark_bgr,
+                brightness_increase=self.brightness_increase
             )
 
         screen_text_size = cv.getTextSize(
@@ -457,3 +469,17 @@ class ImageProcessor:
             'normalized_eye_distance': 0,
             'mesh_points': None,
         }
+
+    def process_face_mesh(self, frame, mesh_results):
+        """Process face mesh detection results and draw on frame
+
+        Args:
+            frame: Input frame
+            mesh_results: Face mesh detection results
+
+        Returns:
+            dict: Processing results containing frame and detection flags
+        """
+        if mesh_results.multi_face_landmarks:
+            return self._process_face_mesh_impl(frame, mesh_results)
+        return self._process_face_mesh_noface(frame)

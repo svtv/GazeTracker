@@ -1,3 +1,4 @@
+from PIL import Image
 from tkdial import ImageKnob
 
 class ImageKnobEx(ImageKnob):
@@ -33,3 +34,20 @@ class ImageKnobEx(ImageKnob):
         # Calculate new value
         delta = current_step if event_delta > 0 else -current_step
         self.set(self.value + delta)
+
+    def configure(self, **kwargs):
+        """Configure the knob"""
+        if "scale_image" in kwargs:
+            self.scale_image = kwargs.pop("scale_image")
+            if self.scale_image:
+                self.image2 = Image.open(self.scale_image).resize((self.radius, self.radius))
+                self.update2 = self.draw_scale().__next__
+                self.update2()
+                self.update = self.draw().__next__
+                self.update()
+
+            else:
+                if not self.scale_width:
+                    self.scale_width = 0
+
+        return super().configure(**kwargs)

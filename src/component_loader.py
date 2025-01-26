@@ -18,11 +18,11 @@ from .settings import Settings
 
 class LoadingUIComponents:
     """Class for managing loading UI components"""
-    def __init__(self, parent, settings):
+    def __init__(self, parent):
         self.frame = None
         self.progress_bars = {}
         self.status_labels = {}
-        self.default_font = settings.get(APP_FONT_KEY, APP_FONT)
+        self.default_font = Settings.get(APP_FONT_KEY, APP_FONT)
         self.parent = parent
 
 
@@ -44,17 +44,15 @@ class LoadedComponents:
         self.modules = {}
         self.cap = None
         self.mp_face_mesh = None
-        self.settings = None
 
 
 class ComponentLoader:
     """Class for managing application component loading"""
     def __init__(self, parent):
         self.parent = parent
-        self.settings = Settings()
 
         # Initialize component groups
-        self.ui = LoadingUIComponents(parent, self.settings)
+        self.ui = LoadingUIComponents(parent)
         self.state = LoadingState()
         self.loaded = LoadedComponents()
         self.on_complete_callback = None
@@ -133,8 +131,8 @@ class ComponentLoader:
             self.loaded.mp_face_mesh = mp.solutions.face_mesh.FaceMesh(
                 max_num_faces=1,
                 refine_landmarks=True,
-                min_detection_confidence=self.settings.get(MIN_DETECTION_CONFIDENCE_KEY, MIN_DETECTION_CONFIDENCE),
-                min_tracking_confidence=self.settings.get(MIN_TRACKING_CONFIDENCE_KEY, MIN_TRACKING_CONFIDENCE),
+                min_detection_confidence=Settings.get(MIN_DETECTION_CONFIDENCE_KEY, MIN_DETECTION_CONFIDENCE),
+                min_tracking_confidence=Settings.get(MIN_TRACKING_CONFIDENCE_KEY, MIN_TRACKING_CONFIDENCE),
             )
             self.state.load_queue.put(("progress_update", "mediapipe", 0.7))
 
@@ -151,11 +149,6 @@ class ComponentLoader:
     def _load_other_modules(self):
         """Loading other modules"""
         try:
-            # Load settings
-            self.state.load_queue.put(("message", "Loading settings..."))
-            self.loaded.settings = Settings()
-            self.state.load_queue.put(("progress_update", "other_modules", 0.2))
-
             # Load additional modules
             self.state.load_queue.put(("message", "Loading additional modules..."))
             self.loaded.modules['numpy'] = importlib.import_module('numpy')
@@ -266,7 +259,6 @@ class ComponentLoader:
             self.loaded.modules,
             self.loaded.cap,
             self.loaded.mp_face_mesh,
-            self.loaded.settings,
         )
 
     def _check_loading_status(self):
