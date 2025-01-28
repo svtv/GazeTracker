@@ -37,6 +37,14 @@ class Settings:
         except FileNotFoundError:
             self._settings = self._create_default_settings()
 
+    def get_settings(self) -> Dict[str, Any]:
+        """Returns the settings dictionary"""
+        return self._settings
+
+    def update_settings(self, settings: Dict[str, Any]):
+        """Updates the settings dictionary"""
+        self._settings = settings
+
     @classmethod
     def get(cls, path: str, default: Any = None) -> Any:
         """
@@ -47,7 +55,7 @@ class Settings:
             cls()
 
         try:
-            value = cls._instance._settings
+            value = cls._instance.get_settings()
             for key in path.split('.'):
                 value = value[key]
             return value
@@ -73,7 +81,8 @@ class Settings:
 
         # If value is different or doesn't exist - update
         keys = path.split('.')
-        current = cls._instance._settings
+        settings = cls._instance.get_settings().copy()
+        current = settings
 
         # Go through all keys except the last one
         for key in keys[:-1]:
@@ -84,17 +93,20 @@ class Settings:
         # Set the value
         current[keys[-1]] = value
 
+        # Update settings
+        cls._instance.update_settings(settings)
+
         # Save to file
         settings_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'settings.json')
         with open(settings_path, 'w', encoding='utf-8') as f:
-            json.dump(cls._instance._settings, f, indent=4)
+            json.dump(cls._instance.get_settings(), f, indent=4)
 
     @classmethod
     def all(cls) -> Dict[str, Any]:
         """Returns all settings"""
         if cls._instance is None:
             cls()
-        return cls._instance._settings.copy()
+        return cls._instance.get_settings().copy()
 
     @staticmethod
     def _create_default_settings() -> Dict[str, Any]:

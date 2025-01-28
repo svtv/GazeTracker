@@ -5,6 +5,7 @@ import time
 import traceback
 
 from .image_processor import ImageProcessor
+from .screen_state import is_screen_on
 
 class MainModel:
     """Model for processing video frames and managing processing thread"""
@@ -22,6 +23,10 @@ class MainModel:
 
         # Create image processor
         self.image_processor = ImageProcessor(self.app, self.modules)
+
+        # Screen state caching
+        self._last_screen_check = 0
+        self._screen_state = True
 
     def start(self):
         """Start processing thread"""
@@ -47,32 +52,37 @@ class MainModel:
         """Background thread for continuous frame processing"""
         while self.should_process:
             try:
-                # Get required modules
-                cv = self.modules['cv2']
-                # Image = self.modules['PIL']
+                # Check if screen is on (caching with 1 second update)
+                current_time = time.time()
+                if current_time - self._last_screen_check >= 1.0:
+                    self._screen_state = is_screen_on()
+                    self._last_screen_check = current_time
 
-                ret, frame = self.cap.read()
-                if not ret or frame is None:
-                    time.sleep(self.refresh_delay_ms / 1000)
-                    continue
+                # Use cached screen state
+                if self._screen_state:
+                    # Get required modules
+                    cv = self.modules['cv2']
+                    # Image = self.modules['PIL']
 
-                # Apply mirror effect if enabled
-                if self.app.app_state.mirror_effect.get():
-                    frame = cv.flip(frame, 1)
+                    ret, frame = self.cap.read()
+                    if ret and not frame is None:
+                        # Apply mirror effect if enabled
+                        if self.app.app_state.mirror_effect.get():
+                            frame = cv.flip(frame, 1)
 
-                # Convert frame for FaceMesh
-                frame_rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+                        # Convert frame for FaceMesh
+                        frame_rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
 
-                # Process frame using FaceMesh
-                mesh_results = self.mp_face_mesh.process(frame_rgb)
+                        # Process frame using FaceMesh
+                        mesh_results = self.mp_face_mesh.process(frame_rgb)
 
-                results = self.image_processor.process_face_mesh(
-                    frame,
-                    mesh_results,
-                )
-                results['mesh_results'] = mesh_results
-                results['threshold_value'] = self.app.app_state.threshold_value.get()
-                self.process_queue.put(results)
+                        results = self.image_processor.process_face_mesh(
+                            frame,
+                            mesh_results,
+                        )
+                        results['mesh_results'] = mesh_results
+                        results['threshold_value'] = self.app.app_state.threshold_value.get()
+                        self.process_queue.put(results)
 
                 # Wait for next frame
                 time.sleep(self.refresh_delay_ms / 1000)

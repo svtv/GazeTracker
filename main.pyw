@@ -58,15 +58,13 @@ class App(ctk.CTk):
         self.chart_line = None
         self.chart_threshold_line = None
         self.threshold_knob = None
-        # self.threshold_entry = None
-        # self.opacity_slider = None
         self.app_geometry = None
         self.video_frame = None
         self.video_label = None
         self.threshold_inner_frame1 = None
         self.threshold_inner_frame2 = None
         self.threshold_entry = None
-        # self.eye_distance_entry = None
+        self.eye_distance_entry = None
         self.model = None
 
         # Application state initialization
@@ -258,7 +256,6 @@ class App(ctk.CTk):
         )
 
         # Create misc frame
-        # misc_frame = ctk.CTkFrame(self)
         misc_frame = ctk.CTkTabview(self, width=200)
         options_tab = misc_frame.add("Options")
         more_tab = misc_frame.add("More")

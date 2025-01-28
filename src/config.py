@@ -34,8 +34,8 @@ SETTINGS_WINDOW_POSITION_KEY = 'app.settings_window_position'
 COLOR_SETTINGS_WINDOW_POSITION_KEY = 'app.color_settings_window_position'
 
 # Threshold knob configuration
-THRESHOLD_KNOB_STEP = -0.010
-THRESHOLD_KNOB_STEP_PRECISE = -0.001
+THRESHOLD_KNOB_STEP = 0.010
+THRESHOLD_KNOB_STEP_PRECISE = 0.001
 
 # Show camera configuration
 SHOW_CAMERA = False
@@ -62,6 +62,42 @@ REFRESH_DELAY_MS = 100
 # CHART_BUFFER_SIZE: Size of the buffer for the line chart
 CHART_BUFFER_SIZE = 100
 
+# Display settings
+SHOW_DISTANCE = True
+SHOW_DISTANCE_KEY = 'app.show_distance'
+
+# Eye display settings
+EYES_DISPLAY_SCALE = 2.5  # Масштаб отображения глаз
+EYES_DISPLAY_SCALE_KEY = 'display.eyes_scale'
+EYES_VERTICAL_OFFSET = -0.1  # Смещение глаз по вертикали (-1 до 1, где 0 - центр)
+EYES_VERTICAL_OFFSET_KEY = 'display.eyes_vertical_offset'
+
+# Enhanced eye display
+EYE_STYLE = {
+    'PUPIL_SCALE': 0.35,  # Размер зрачка относительно радиуса глаза
+    'IRIS_THICKNESS': 0.15,  # Толщина радужки относительно радиуса
+    'HIGHLIGHT_SCALE': 0.2,  # Размер блика относительно радиуса
+    'HIGHLIGHT_OFFSET': 0.25,  # Смещение блика относительно радиуса
+    'MESH_LINE_SCALE': 0.08,  # Толщина линий меша относительно масштаба
+    'POINT_SCALE': 0.1,  # Размер точек относительно масштаба
+}
+
+# Detailed eye settings
+IRIS_DETAIL_LEVEL = 3  # Количество колец в радужке (1-5)
+IRIS_OUTER_COLOR = "#46AAFE"  # Внешний цвет радужки
+IRIS_INNER_COLOR = "#0C2951"  # Внутренний цвет радужки (зрачок)
+IRIS_HIGHLIGHT_COLOR = "#FFFFFF"  # Цвет бликов
+IRIS_HIGHLIGHT_SIZE = 0.2  # Размер блика относительно радиуса (0-1)
+IRIS_HIGHLIGHT_OFFSET = 0.3  # Смещение блика относительно радиуса (0-1)
+
+# Eyebrow settings
+EYEBROW_THICKNESS = 1.2  # Толщина бровей относительно базовой (0.5-2)
+EYEBROW_SMOOTHING = True  # Сглаживание бровей
+
+# Line settings
+LINE_THICKNESS = 0.7  # Толщина линий относительно масштаба (0.3-1.5)
+LINE_SMOOTHING = True  # Сглаживание линий
+
 # Color scheme https://coolors.co/0c2951-46aafe-f6e27f-a30b37-a9fff7
 # Все цвета в HEX формате
 BACKGROUND_COLOR = "#0C2951"  # RGB(12, 41, 81)
@@ -73,6 +109,13 @@ MESH_DARK_COLOR = "#0170CB"  # RGB(1, 112, 203)
 IRIS_COLOR = "#F6E27F"  # RGB(246, 226, 127)
 EYE_INNER_CORNER_COLOR = "#A30B37"  # RGB(163, 11, 55)
 EYE_OUTER_CORNER_COLOR = "#A30B37"  # RGB(163, 11, 55)
+
+# Active color scheme (change these values to switch between themes)
+# BACKGROUND_COLOR = BACKGROUND_COLOR_DARK
+# BACKGROUND_DARK_COLOR = BACKGROUND_DARK_COLOR_DARK
+# MESH_COLOR = MESH_COLOR_DARK
+# MESH_DARK_COLOR = MESH_DARK_COLOR_DARK
+# MESH_LIGHT_COLOR = MESH_LIGHT_COLOR_DARK
 
 # Цвета для особых состояний
 STRABISMUS_DETECTED_COLOR = "#FF0000"  # Красный

@@ -9,6 +9,20 @@ from .config import (
     LEFT_IRIS, RIGHT_IRIS,
     L_H_LEFT, L_H_RIGHT,
     R_H_LEFT, R_H_RIGHT,
+    SHOW_DISTANCE,
+    EYES_DISPLAY_SCALE,
+    EYES_VERTICAL_OFFSET,
+    EYE_STYLE,
+    IRIS_DETAIL_LEVEL,
+    IRIS_OUTER_COLOR,
+    IRIS_INNER_COLOR,
+    IRIS_HIGHLIGHT_COLOR,
+    IRIS_HIGHLIGHT_SIZE,
+    IRIS_HIGHLIGHT_OFFSET,
+    EYEBROW_THICKNESS,
+    EYEBROW_SMOOTHING,
+    LINE_THICKNESS,
+    LINE_SMOOTHING,
 )
 
 class ImageProcessor:
@@ -25,9 +39,51 @@ class ImageProcessor:
         self.background_color = BACKGROUND_COLOR
         self.brightness_increase = 40
 
+        # Настройки отображения
+        self.show_distance = SHOW_DISTANCE
+        self.eyes_display_scale = EYES_DISPLAY_SCALE
+        self.eyes_vertical_offset = EYES_VERTICAL_OFFSET
+        self.eye_style = EYE_STYLE
+
+        # Настройки детализации глаз
+        self.iris_detail_level = IRIS_DETAIL_LEVEL
+        self.iris_outer_color = IRIS_OUTER_COLOR
+        self.iris_inner_color = IRIS_INNER_COLOR
+        self.iris_highlight_color = IRIS_HIGHLIGHT_COLOR
+        self.iris_highlight_size = IRIS_HIGHLIGHT_SIZE
+        self.iris_highlight_offset = IRIS_HIGHLIGHT_OFFSET
+        self.eyebrow_thickness = EYEBROW_THICKNESS
+        self.eyebrow_smoothing = EYEBROW_SMOOTHING
+        self.line_thickness = LINE_THICKNESS
+        self.line_smoothing = LINE_SMOOTHING
+
+        # Предварительно вычисляем цвета для _draw_mesh
+        self._mesh_color_bgr = self.rgb_to_bgr(self.hex_to_rgb(self.mesh_color))
+        self._iris_color_bgr = self.rgb_to_bgr(self.hex_to_rgb(self.mesh_light_color))
+        self._background_color_bgr = self.rgb_to_bgr(self.hex_to_rgb(self.background_color))
+
+        # Предварительно определяем индексы точек
+        self._left_eye_details = np.array([33, 246, 161, 160, 159, 158, 157, 173, 133, 155, 154, 153, 145, 144, 163, 7])
+        self._right_eye_details = np.array([362, 398, 384, 385, 386, 387, 388, 466, 263, 249, 390, 373, 374, 380, 381, 382])
+        self._left_eyebrow = np.array([70, 63, 105, 66, 107, 55, 65, 52, 53])
+        self._right_eyebrow = np.array([300, 293, 334, 296, 336, 285, 295, 282, 283])
+
+        # Создаем заранее массивы для линий
+        self._left_eye_lines = np.column_stack((self._left_eye_details, np.roll(self._left_eye_details, -1)))
+        self._right_eye_lines = np.column_stack((self._right_eye_details, np.roll(self._right_eye_details, -1)))
+        self._left_eyebrow_lines = np.column_stack((self._left_eyebrow[:-1], self._left_eyebrow[1:]))
+        self._right_eyebrow_lines = np.column_stack((self._right_eyebrow[:-1], self._right_eyebrow[1:]))
+
+    def _update_colors(self):
+        """Обновляем цвета в зависимости от текущей темы"""
+        # Обновляем предварительно вычисленные цвета
+        self._mesh_color_bgr = self.rgb_to_bgr(self.hex_to_rgb(self.mesh_color))
+        self._iris_color_bgr = self.rgb_to_bgr(self.hex_to_rgb(self.mesh_light_color))
+        self._background_color_bgr = self.rgb_to_bgr(self.hex_to_rgb(self.background_color))
+
     def update_colors(self, color_name, hex_color):
         """Update color values"""
-        rgb_color = self.hex_to_rgb(hex_color)
+        # rgb_color = self.hex_to_rgb(hex_color)
         # bgr_color = self.rgb_to_bgr(rgb_color)
 
         if color_name == "Background Dark":
@@ -64,8 +120,48 @@ class ImageProcessor:
         return rgb_color[2], rgb_color[1], rgb_color[0]
 
     @staticmethod
+    def _create_tech_grid(height, width, base_color):
+        """Создает технологичную сетку с ячейками разного размера.
+
+        Args:
+            height (int): Высота изображения
+            width (int): Ширина изображения
+            base_color (tuple): Базовый цвет в формате BGR
+            alpha (float): Прозрачность сетки (0-1)
+
+        Returns:
+            numpy.ndarray: Изображение с сеткой
+        """
+        grid = np.zeros((height, width, 3), dtype=np.uint8)
+
+        # Создаем сетку разных размеров
+        cell_sizes = [64, 32, 16]  # Размеры ячеек
+        colors = []
+
+        # Создаем цвета для разных уровней сетки
+        for i, size in enumerate(cell_sizes):
+            # Делаем каждый следующий уровень сетки немного темнее
+            factor = 1.0 - (i * 0.2)
+            color = tuple(int(c * factor) for c in base_color)
+            colors.append(color)
+
+        # Рисуем сетки разных размеров
+        for size, color in zip(cell_sizes, colors):
+            # Вертикальные линии
+            for x in range(0, width, size):
+                thickness = 1 if size < 64 else 2
+                cv.line(grid, (x, 0), (x, height), color, thickness)
+
+            # Горизонтальные линии
+            for y in range(0, height, size):
+                thickness = 1 if size < 64 else 2
+                cv.line(grid, (0, y), (width, y), color, thickness)
+
+        return grid
+
+    @staticmethod
     def create_gradient_background(height, width, base_color, brightness_increase=40):
-        """Create a radial gradient background with lighter center.
+        """Create a radial gradient background with lighter center and tech grid.
 
         Args:
             height (int): Frame height
@@ -74,7 +170,7 @@ class ImageProcessor:
             brightness_increase (int): How much brighter the center should be
 
         Returns:
-            numpy.ndarray: Frame with radial gradient
+            numpy.ndarray: Frame with radial gradient and tech grid
         """
         # Create coordinates grid
         Y, X = np.ogrid[:height, :width]
@@ -86,16 +182,27 @@ class ImageProcessor:
         dist_from_center = np.sqrt((X - center_x)**2 + (Y - center_y)**2)
         # Normalize distances to [0, 1] range
         max_dist = np.sqrt(center_x**2 + center_y**2)
-        gradient_mask = dist_from_center / max_dist
+        norm_dist = dist_from_center / max_dist
 
-        # Create lighter color for center
-        lighter_color = np.minimum(np.array(base_color) + brightness_increase, 255)
+        # Create gradient effect
+        gradient = 1 - norm_dist
+        # Apply brightness increase
+        gradient = gradient * brightness_increase
 
-        # Create gradient frame
+        # Create output frame
         frame = np.zeros((height, width, 3), dtype=np.uint8)
-        for c in range(3):  # For each color channel
-            frame[:, :, c] = (gradient_mask * base_color[c] +
-                            (1 - gradient_mask) * lighter_color[c])
+        # Apply base color
+        frame[:, :] = base_color
+
+        # Apply brightness increase
+        for i in range(3):
+            frame[:, :, i] = np.clip(frame[:, :, i] + gradient, 0, 255)
+
+        # Создаем и накладываем технологичную сетку
+        grid = ImageProcessor._create_tech_grid(height, width, base_color)
+
+        # Смешиваем сетку с фоном
+        frame = cv.addWeighted(frame, 1, grid, 0.15, 0)
 
         return frame
 
@@ -347,21 +454,118 @@ class ImageProcessor:
 
     def _draw_mesh(self, frame, mesh_points, center_left, center_right, l_radius, r_radius):
         """Draw mesh and eyes on frame"""
-        # Draw mesh
-        mesh_rgb = self.hex_to_rgb(self.mesh_color)
-        mesh_color = self.rgb_to_bgr(mesh_rgb)
-        for point in mesh_points:
-            cv.circle(frame, tuple(point), 1, mesh_color, -1)
+        if center_left is None or center_right is None:
+            return frame
 
-        # Draw eyes
-        # Convert colors to BGR
-        mesh_light_rgb = self.hex_to_rgb(self.mesh_light_color)
-        iris_color = self.rgb_to_bgr(mesh_light_rgb)
-        # eye_inner_corner_color = iris_color
-        # eye_outer_corner_color = iris_color
+        height, width = frame.shape[:2]
+        # display_frame = np.zeros((height, width, 3), dtype=np.uint8)
+        # display_frame[:] = self._background_color_bgr
 
-        cv.circle(frame, center_left, int(l_radius), iris_color, 2, cv.LINE_AA)
-        cv.circle(frame, center_right, int(r_radius), iris_color, 2, cv.LINE_AA)
+        # Определяем масштаб
+        scale = self.eyes_display_scale
+
+        # Инициализируем точки без масштабирования
+        centered_points = mesh_points
+        centered_center_left = center_left
+        centered_center_right = center_right
+
+        if not self.app.app_state.show_camera.get():
+            # Находим центр между глазами и целевой центр экрана
+            eyes_center = (center_left + center_right) * 0.5
+
+            # Вычисляем целевой центр с учетом вертикального смещения
+            vertical_offset = height * self.eyes_vertical_offset
+            target_center = np.array([width * 0.5, height * 0.5 + vertical_offset])
+
+            # Сначала применяем масштабирование к точкам относительно центра глаз
+            scale_matrix = np.array([[scale, 0], [0, scale]])
+            scaled_points = (mesh_points - eyes_center) @ scale_matrix + eyes_center
+            scaled_center_left = (center_left - eyes_center) @ scale_matrix + eyes_center
+            scaled_center_right = (center_right - eyes_center) @ scale_matrix + eyes_center
+
+            # Затем вычисляем смещение для центрирования масштабированных точек
+            scaled_eyes_center = (scaled_center_left + scaled_center_right) * 0.5
+            offset = target_center - scaled_eyes_center
+
+            # Применяем смещение к масштабированным точкам
+            centered_points = scaled_points + offset
+            centered_center_left = scaled_center_left + offset
+            centered_center_right = scaled_center_right + offset
+
+        # Рисуем линии глаз (векторизованная операция)
+        def draw_lines(lines_indices):
+            points = centered_points[lines_indices]
+            points = points.reshape(-1, 2, 2).astype(np.int32)
+            line_thickness = max(1, int(scale * self.eye_style['MESH_LINE_SCALE']))
+            for pt1, pt2 in points:
+                cv.line(frame, tuple(pt1), tuple(pt2),
+                       self._mesh_color_bgr, line_thickness, cv.LINE_AA)
+
+        draw_lines(self._left_eye_lines)
+        draw_lines(self._right_eye_lines)
+        draw_lines(self._left_eyebrow_lines)
+        draw_lines(self._right_eyebrow_lines)
+
+        # Рисуем точки (векторизованная операция)
+        all_points = np.concatenate([
+            centered_points[self._left_eye_details],
+            centered_points[self._right_eye_details],
+            centered_points[self._left_eyebrow],
+            centered_points[self._right_eyebrow]
+        ]).astype(np.int32)
+
+        point_size = max(1, int(scale * self.eye_style['POINT_SCALE']))
+        for point in all_points:
+            cv.circle(frame, tuple(point), point_size, self._mesh_color_bgr, -1, cv.LINE_AA)
+
+        # Оптимизированное рисование глаз
+        def draw_eye(center, radius):
+            center = tuple(map(int, center))
+
+            # Применяем масштаб только если камера выключена
+            if not self.app.app_state.show_camera.get():
+                scaled_radius = int(radius * scale)
+            else:
+                scaled_radius = int(radius)
+
+            # Рисуем радужку
+            iris_thickness = max(1, int(scaled_radius * self.eye_style['IRIS_THICKNESS']))
+            cv.circle(frame, center, scaled_radius, self._iris_color_bgr, iris_thickness, cv.LINE_AA)
+
+            # Рисуем зрачок
+            pupil_radius = int(scaled_radius * self.eye_style['PUPIL_SCALE'])
+            cv.circle(frame, center, pupil_radius, self._iris_color_bgr, -1, cv.LINE_AA)
+
+            # Добавляем блик
+            highlight_size = int(scaled_radius * self.eye_style['HIGHLIGHT_SCALE'])
+            highlight_offset = int(scaled_radius * self.eye_style['HIGHLIGHT_OFFSET'])
+
+            # Основной блик
+            highlight_pos = (
+                center[0] + highlight_offset,
+                center[1] - highlight_offset
+            )
+            cv.circle(frame, highlight_pos, highlight_size, (255, 255, 255), -1, cv.LINE_AA)
+
+            # Дополнительный маленький блик для реалистичности
+            small_highlight_pos = (
+                center[0] - highlight_offset // 2,
+                center[1] + highlight_offset // 2
+            )
+            cv.circle(frame, small_highlight_pos, highlight_size // 2,
+                     (255, 255, 255), -1, cv.LINE_AA)
+
+        # Рисуем оба глаза
+        draw_eye(centered_center_left, l_radius)
+        draw_eye(centered_center_right, r_radius)
+
+        # Добавляем текст с расстоянием (вычисляем только если нужно)
+        if self.show_distance:
+            eye_distance = np.linalg.norm(centered_center_right - centered_center_left)
+            cv.putText(frame, f"Eye Distance: {eye_distance:.1f}px",
+                      (10, height - 20), cv.FONT_HERSHEY_SIMPLEX, 0.7, self._mesh_color_bgr, 1, cv.LINE_AA)
+
+        return frame
 
     def _draw_text(self, frame, normalized_eye_distance):
         """Draw eye distance text on frame"""
@@ -419,7 +623,7 @@ class ImageProcessor:
             )
 
         # Draw mesh and eyes
-        self._draw_mesh(frame, mesh_points, center_left, center_right, l_radius, r_radius)
+        frame = self._draw_mesh(frame, mesh_points, center_left, center_right, l_radius, r_radius)
 
         # Draw text
         self._draw_text(frame, normalized_eye_distance)
