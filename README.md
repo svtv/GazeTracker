@@ -16,8 +16,6 @@
 
 ---
 
-## English
-
 ### Overview
 GazeTracker is a specialized application designed to assist in self-monitoring and correction of vision defects. While it uses computer vision to track user's gaze and facial movements in real-time, its primary purpose is to help users maintain better control over their vision problems. The application alerts users when vision defects are detected, allowing them to perform immediate self-correction exercises.
 
@@ -39,7 +37,6 @@ Built with Python, it combines the power of OpenCV and MediaPipe for accurate fa
 - CustomTkinter
 - CTkChart
 - CTkColorPicker
-- Keyboard
 
 ### Installation
 1. Clone the repository
@@ -56,14 +53,12 @@ python main.pyw
 1. Launch the application
 2. Adjust the settings according to your needs
 3. Position your face in front of the camera
-4. The overlay window will show tracking information
+4. You will be notified when a visual defect is detected
 
 ### Acknowledgments
 Inspired by [Python-Gaze-Face-Tracker](https://github.com/alireza787b/Python-Gaze-Face-Tracker)
 
 ---
-
-## Русский
 
 ### Обзор
 GazeTracker - это специализированное приложение, разработанное для помощи в самоконтроле и коррекции дефектов зрения. Хотя оно использует компьютерное зрение для отслеживания взгляда и движений лица в реальном времени, его основное назначение - помочь пользователям поддерживать лучший контроль над проблемами зрения. Приложение оповещает пользователей при обнаружении дефектов зрения, позволяя выполнить немедленную самокоррекцию.
@@ -86,7 +81,6 @@ GazeTracker - это специализированное приложение, 
 - CustomTkinter
 - CTkChart
 - CTkColorPicker
-- Keyboard
 
 ### Установка
 1. Клонируйте репозиторий
@@ -103,7 +97,7 @@ python main.pyw
 1. Запустите приложение
 2. Настройте параметры под свои нужды
 3. Расположите лицо перед камерой
-4. Окно оверлея будет показывать информацию об отслеживании
+4. Вы будете уведомлены при обнаружении дефекта зрения
 
 ### Благодарности
 Вдохновлено проектом [Python-Gaze-Face-Tracker](https://github.com/alireza787b/Python-Gaze-Face-Tracker)
