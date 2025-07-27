@@ -1,4 +1,4 @@
-# GazeTracker 👁️
+# GazeTracker
 
 > Real-time vision defects self-monitoring and correction assistant with gaze tracking capabilities
 
@@ -22,12 +22,12 @@ GazeTracker is a specialized application designed to assist in self-monitoring a
 Built with Python, it combines the power of OpenCV and MediaPipe for accurate facial feature detection and tracking, making it an effective tool for vision self-monitoring.
 
 ### Features
-- 🚨 Real-time detection and alerts for vision defects
-- 🎯 Immediate feedback for vision self-correction
-- 👀 Real-time eye tracking
-- 😊 Face detection and tracking
-- 🎨 Customizable alert window
-- ⚙️ Adjustable settings and parameters
+- Real-time detection and alerts for vision defects
+- Immediate feedback for vision self-correction
+- Real-time eye tracking
+- Face detection and tracking
+- Customizable alert window
+- Adjustable settings and parameters
 
 ### Requirements
 - Python 3.8+
@@ -66,12 +66,12 @@ GazeTracker - это специализированное приложение, 
 Построенное на Python, оно объединяет возможности OpenCV и MediaPipe для точного определения и отслеживания черт лица, что делает его эффективным инструментом для самоконтроля зрения.
 
 ### Возможности
-- 🚨 Обнаружение дефектов зрения и оповещения в реальном времени
-- 🎯 Мгновенная обратная связь для самокоррекции зрения
-- 👀 Отслеживание взгляда в реальном времени
-- 😊 Определение и отслеживание лица
-- 🎨 Настраиваемое окно оповещений
-- ⚙️ Настраиваемые параметры
+- Обнаружение дефектов зрения и оповещения в реальном времени
+- Мгновенная обратная связь для самокоррекции зрения
+- Отслеживание взгляда в реальном времени
+- Определение и отслеживание лица
+- Настраиваемое окно оповещений
+- Настраиваемые параметры
 
 ### Требования
 - Python 3.8+
