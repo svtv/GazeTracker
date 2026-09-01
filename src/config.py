@@ -158,6 +158,9 @@ RED_LIGHT_COLOR = "#F8A0B9"  # RGB(248, 160, 185)
 
 # DEFAULT_WEBCAM: Default camera source index. '0' usually refers to the built-in webcam.
 DEFAULT_WEBCAM = 0
+CAMERA_REQUEST_WIDTH = 1280
+CAMERA_REQUEST_HEIGHT = 720
+CAMERA_REQUEST_FPS = 30
 
 ## Head Pose Estimation Landmark Indices
 # These indices correspond to the specific facial landmarks used for head pose estimation.

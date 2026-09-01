@@ -12,8 +12,10 @@ from .config import (
     APP_FONT, APP_FONT_KEY, APP_FONT_SIZE_TITLE,
     MIN_DETECTION_CONFIDENCE, MIN_DETECTION_CONFIDENCE_KEY,
     MIN_TRACKING_CONFIDENCE, MIN_TRACKING_CONFIDENCE_KEY,
-    DEFAULT_WEBCAM
+    DEFAULT_WEBCAM, CAMERA_REQUEST_WIDTH, CAMERA_REQUEST_HEIGHT,
+    CAMERA_REQUEST_FPS
 )
+from .camera_mode import configure_and_probe_camera
 from .settings import Settings
 
 class LoadingUIComponents:
@@ -43,6 +45,7 @@ class LoadedComponents:
     def __init__(self):
         self.modules = {}
         self.cap = None
+        self.camera_mode = None
         self.mp_face_mesh = None
 
 
@@ -90,19 +93,29 @@ class ComponentLoader:
                 raise RuntimeError("Failed to connect to camera")
             self.state.load_queue.put(("progress_update", "camera", 0.6))
 
-            # Set camera parameters
-            ret1 = self.loaded.cap.set(cv.CAP_PROP_FRAME_WIDTH, 1280)
-            ret2 = self.loaded.cap.set(cv.CAP_PROP_FRAME_HEIGHT, 720)
-            ret3 = self.loaded.cap.set(cv.CAP_PROP_FPS, 30)
+            # Request the preferred mode, then trust the first captured frame
+            # rather than the advisory return values from VideoCapture.set().
+            _, self.loaded.camera_mode = configure_and_probe_camera(
+                self.loaded.cap,
+                cv,
+                CAMERA_REQUEST_WIDTH,
+                CAMERA_REQUEST_HEIGHT,
+                CAMERA_REQUEST_FPS,
+            )
 
-            # Verify camera settings
-            if not all([ret1, ret2, ret3]):
-                raise RuntimeError("Failed to set camera parameters")
-
-            # Test camera capture
-            ret, frame = self.loaded.cap.read()
-            if not ret or frame is None:
-                raise RuntimeError("Failed to capture frame from camera")
+            mode_description = self.loaded.camera_mode.describe()
+            requested = (
+                f"{CAMERA_REQUEST_WIDTH}x{CAMERA_REQUEST_HEIGHT} "
+                f"@ {CAMERA_REQUEST_FPS} FPS"
+            )
+            if self.loaded.camera_mode.matches_request:
+                print(f"Camera mode: {mode_description}")
+            else:
+                print(
+                    f"Camera mode: {mode_description} "
+                    f"(requested {requested}; camera/backend selected a fallback)"
+                )
+            self.state.load_queue.put(("message", f"Camera: {mode_description}"))
 
             self.state.load_queue.put(("progress_update", "camera", 0.8))
 

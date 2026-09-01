@@ -2,7 +2,7 @@
 
 > Real-time vision defects self-monitoring and correction assistant with gaze tracking capabilities
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/Python-3.9--3.12-blue.svg)](https://www.python.org/downloads/)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.x-green.svg)](https://opencv.org/)
 [![MediaPipe](https://img.shields.io/badge/MediaPipe-Latest-red.svg)](https://mediapipe.dev/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -30,7 +30,7 @@ Built with Python, it combines the power of OpenCV and MediaPipe for accurate fa
 - Adjustable settings and parameters
 
 ### Requirements
-- Python 3.8+
+- Python 3.9–3.12
 - OpenCV
 - MediaPipe
 - NumPy
@@ -40,13 +40,21 @@ Built with Python, it combines the power of OpenCV and MediaPipe for accurate fa
 
 ### Installation
 1. Clone the repository
-2. Install dependencies:
+2. Create and activate a virtual environment
+3. Install the pinned runtime dependencies:
 ```bash
 pip install -r requirements.txt
 ```
-3. Run the application:
+4. Run the application:
 ```bash
 python main.pyw
+```
+
+For development, install and run the checks with:
+```bash
+pip install -r requirements-dev.txt
+pytest
+ruff check .
 ```
 
 ### Usage
@@ -74,7 +82,7 @@ GazeTracker - это специализированное приложение, 
 - Настраиваемые параметры
 
 ### Требования
-- Python 3.8+
+- Python 3.9–3.12
 - OpenCV
 - MediaPipe
 - NumPy
@@ -84,13 +92,21 @@ GazeTracker - это специализированное приложение, 
 
 ### Установка
 1. Клонируйте репозиторий
-2. Установите зависимости:
+2. Создайте и активируйте виртуальное окружение
+3. Установите зафиксированные версии рабочих зависимостей:
 ```bash
 pip install -r requirements.txt
 ```
-3. Запустите приложение:
+4. Запустите приложение:
 ```bash
 python main.pyw
+```
+
+Для разработки установите дополнительные зависимости и запустите проверки:
+```bash
+pip install -r requirements-dev.txt
+pytest
+ruff check .
 ```
 
 ### Использование

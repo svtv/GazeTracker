@@ -17,7 +17,7 @@ class MainModel:
         self.refresh_delay_ms = refresh_delay_ms
 
         # Thread control
-        self.process_queue = queue.Queue()
+        self.process_queue = queue.Queue(maxsize=1)
         self.processing_thread = None
         self.should_process = True
 
