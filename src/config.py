@@ -70,10 +70,8 @@ REFRESH_DELAY_MS = 50
 # smoother but react more slowly to intentional movement.
 LANDMARK_SMOOTHING_ALPHA = 0.20
 
-# Stabilization of the measured ratio and threshold alert state.
+# Stabilization used only for the displayed ratio and chart.
 RATIO_SMOOTHING_ALPHA = 0.25
-ALERT_HYSTERESIS = 0.005
-ALERT_CONFIRMATION_FRAMES = 3
 
 # CHART_BUFFER_SIZE: Size of the buffer for the line chart
 CHART_BUFFER_SIZE = 100

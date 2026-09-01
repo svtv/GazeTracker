@@ -465,7 +465,7 @@ class ImageProcessor:
         return self._smoothed_mesh_points.copy()
 
     def _smooth_ratio(self, ratio):
-        """Stabilize the value shown in the UI and used by alert logic."""
+        """Stabilize only the value shown in the UI and chart."""
         ratio = float(ratio)
         if self._smoothed_ratio is None:
             self._smoothed_ratio = ratio
@@ -656,20 +656,31 @@ class ImageProcessor:
 
         # Process landmarks
         face_landmarks = mesh_results.multi_face_landmarks[0]
-        mesh_points = self._process_landmarks(face_landmarks, img_w, img_h)
-        mesh_points = self._smooth_landmarks(mesh_points)
+        raw_mesh_points = self._process_landmarks(
+            face_landmarks,
+            img_w,
+            img_h
+        )
 
-        # Process eyes
+        # Detection uses the current landmarks without temporal smoothing.
+        (
+            _raw_center_left,
+            _raw_center_right,
+            _raw_l_radius,
+            _raw_r_radius,
+            raw_eye_distance
+        ) = self._process_eyes(raw_mesh_points)
+
+        # Presentation uses independent smoothing.
+        display_eye_distance = self._smooth_ratio(raw_eye_distance)
+        mesh_points = self._smooth_landmarks(raw_mesh_points)
         (
             center_left,
             center_right,
             l_radius,
             r_radius,
-            normalized_eye_distance
+            _display_geometry_distance
         ) = self._process_eyes(mesh_points)
-        normalized_eye_distance = self._smooth_ratio(
-            normalized_eye_distance
-        )
 
         # Center mesh points if needed
         if not self.app.app_state.show_camera.get():
@@ -687,11 +698,12 @@ class ImageProcessor:
         frame = self._draw_mesh(frame, mesh_points, center_left, center_right, l_radius, r_radius)
 
         # Draw text
-        self._draw_text(frame, normalized_eye_distance)
+        self._draw_text(frame, display_eye_distance)
 
         return {
             'frame': frame,
-            'normalized_eye_distance': normalized_eye_distance,
+            'normalized_eye_distance': float(raw_eye_distance),
+            'display_eye_distance': float(display_eye_distance),
             'mesh_points': mesh_points,
         }
 
@@ -717,6 +729,7 @@ class ImageProcessor:
         return {
             'frame': frame,
             'normalized_eye_distance': 0,
+            'display_eye_distance': 0,
             'mesh_points': None,
         }
 

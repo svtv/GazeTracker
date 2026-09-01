@@ -110,15 +110,15 @@
     "button_hover_color": ["#87918C", "#626C74"]
   },
   "CTkSegmentedButton": {
-    "corner_radius": 7,
-    "border_width": 1,
-    "fg_color": ["#D5D9D6", "#353B41"],
-    "selected_color": ["#287F9D", "#45A5C5"],
-    "selected_hover_color": ["#226E89", "#55B3D0"],
-    "unselected_color": ["#E4E7E4", "#2B3035"],
-    "unselected_hover_color": ["#D5D9D6", "#353B41"],
-    "text_color": ["#FFFFFF", "#E7EBED"],
-    "text_color_disabled": ["#9AA2A6", "#687278"]
+      "corner_radius": 7,
+      "border_width": 1,
+      "fg_color": ["#D5D9D6", "#353B41"],
+      "selected_color": ["#B8D6DF", "#45A5C5"],
+      "selected_hover_color": ["#A8CAD5", "#55B3D0"],
+      "unselected_color": ["#E4E7E4", "#2B3035"],
+      "unselected_hover_color": ["#D5D9D6", "#353B41"],
+      "text_color": ["#20272B", "#E7EBED"],
+      "text_color_disabled": ["#9AA2A6", "#687278"]
   },
   "CTkTextbox": {
     "corner_radius": 7,

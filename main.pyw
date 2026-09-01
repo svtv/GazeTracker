@@ -23,7 +23,6 @@ from src.config import (
     THRESHOLD_KNOB_STEP, THRESHOLD_KNOB_STEP_PRECISE,
     DATA_ACCENT_COLOR, THRESHOLD_COLOR,
     CAMERA_LETTERBOX_COLOR,
-    ALERT_HYSTERESIS, ALERT_CONFIRMATION_FRAMES,
 )
 from src.main_model import MainModel
 from src.overlay import OverlayWindow
@@ -75,9 +74,6 @@ class App(ctk.CTk):
         self.threshold_entry = None
         self.eye_distance_entry = None
         self.model = None
-        self._alert_active = False
-        self._alert_candidate_state = None
-        self._alert_candidate_frames = 0
 
         # Application state initialization
         self.app_state = AppState()
@@ -443,15 +439,18 @@ class App(ctk.CTk):
             # Process results
             self.face_detected = bool(mesh_results.multi_face_landmarks)
             eye_distance_raw = results['normalized_eye_distance']
+            eye_distance_display = results.get(
+                'display_eye_distance',
+                eye_distance_raw
+            )
             self.app_state.eye_distance.set(
-                self.format_eye_distance(eye_distance_raw)
+                self.format_eye_distance(eye_distance_display)
                 if self.face_detected
                 else "N/A"
             )
-            alert_active = self._update_alert_state(
-                eye_distance_raw,
-                self.face_detected,
-                results['threshold_value']
+            alert_active = (
+                self.face_detected
+                and eye_distance_raw > results['threshold_value']
             )
 
             # Show/hide overlay based on strabismus detection
@@ -461,7 +460,7 @@ class App(ctk.CTk):
 
             # Calculate eye distance percentage
             eye_distance_percent = (
-                (eye_distance_raw - STRABISMUS_RANGE_MIN) /
+                (eye_distance_display - STRABISMUS_RANGE_MIN) /
                 (STRABISMUS_RANGE_MAX - STRABISMUS_RANGE_MIN)
             )
 
@@ -559,37 +558,6 @@ class App(ctk.CTk):
         )
         canvas.paste(fitted_image, offset)
         return canvas
-
-    def _update_alert_state(self, ratio, face_detected, threshold):
-        """Apply hysteresis and consecutive-frame confirmation to alerts."""
-        if not face_detected:
-            self._alert_active = False
-            self._alert_candidate_state = None
-            self._alert_candidate_frames = 0
-            return False
-
-        if self._alert_active:
-            desired_state = ratio >= threshold - ALERT_HYSTERESIS
-        else:
-            desired_state = ratio > threshold
-
-        if desired_state == self._alert_active:
-            self._alert_candidate_state = None
-            self._alert_candidate_frames = 0
-            return self._alert_active
-
-        if desired_state != self._alert_candidate_state:
-            self._alert_candidate_state = desired_state
-            self._alert_candidate_frames = 1
-        else:
-            self._alert_candidate_frames += 1
-
-        if self._alert_candidate_frames >= ALERT_CONFIRMATION_FRAMES:
-            self._alert_active = desired_state
-            self._alert_candidate_state = None
-            self._alert_candidate_frames = 0
-
-        return self._alert_active
 
     def on_closing(self):
         """Clean up resources and handle window close"""

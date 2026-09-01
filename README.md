@@ -8,8 +8,8 @@
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 <div style="display: flex; justify-content: space-between;">
-  <img src="assets/screenshot.png" alt="GazeTracker Dark Theme" width="49%">
   <img src="assets/screenshot_light.png" alt="GazeTracker Light Theme" width="49%">
+  <img src="assets/screenshot.png" alt="GazeTracker Dark Theme" width="49%">
 </div>
 
 [English](#english) | [Русский](#русский)
