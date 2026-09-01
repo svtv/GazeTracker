@@ -5,6 +5,13 @@ APP_FONT_KEY = 'app.font'
 APP_FONT_SIZE = 13
 APP_FONT_SIZE_TITLE = 16
 
+# Semantic UI colors. Each tuple contains (Light, Dark).
+# Most widget colors live in themes/clinical_luxury.json; these values are for
+# third-party widgets and data/status colors that CustomTkinter does not theme.
+DATA_ACCENT_COLOR = ("#397FA5", "#68B4D2")
+THRESHOLD_COLOR = ("#9C6946", "#E0A06F")
+CAMERA_LETTERBOX_COLOR = "#151A1D"
+
 # Main window size
 APP_GEOMETRY = "980x600"
 APP_GEOMETRY_KEY = 'app.geometry'
@@ -57,7 +64,16 @@ STRABISMUS_THRESHOLD_KEY = 'strabismus.threshold'
 ## Display Configuration
 
 # REFRESH_DELAY_MS: Delay in milliseconds between each frame refresh
-REFRESH_DELAY_MS = 100
+REFRESH_DELAY_MS = 50
+
+# Temporal stabilization of detected face landmarks. Lower values are
+# smoother but react more slowly to intentional movement.
+LANDMARK_SMOOTHING_ALPHA = 0.20
+
+# Stabilization of the measured ratio and threshold alert state.
+RATIO_SMOOTHING_ALPHA = 0.25
+ALERT_HYSTERESIS = 0.005
+ALERT_CONFIRMATION_FRAMES = 3
 
 # CHART_BUFFER_SIZE: Size of the buffer for the line chart
 CHART_BUFFER_SIZE = 100
@@ -67,9 +83,9 @@ SHOW_DISTANCE = True
 SHOW_DISTANCE_KEY = 'app.show_distance'
 
 # Eye display settings
-EYES_DISPLAY_SCALE = 2.5  # Масштаб отображения глаз
+EYES_DISPLAY_SCALE = 2.0  # Масштаб отображения глаз
 EYES_DISPLAY_SCALE_KEY = 'display.eyes_scale'
-EYES_VERTICAL_OFFSET = -0.1  # Смещение глаз по вертикали (-1 до 1, где 0 - центр)
+EYES_VERTICAL_OFFSET = 0  # Смещение глаз по вертикали (-1 до 1, где 0 - центр)
 EYES_VERTICAL_OFFSET_KEY = 'display.eyes_vertical_offset'
 
 # Enhanced eye display
@@ -84,9 +100,9 @@ EYE_STYLE = {
 
 # Detailed eye settings
 IRIS_DETAIL_LEVEL = 3  # Количество колец в радужке (1-5)
-IRIS_OUTER_COLOR = "#46AAFE"  # Внешний цвет радужки
-IRIS_INNER_COLOR = "#0C2951"  # Внутренний цвет радужки (зрачок)
-IRIS_HIGHLIGHT_COLOR = "#FFFFFF"  # Цвет бликов
+IRIS_OUTER_COLOR = "#4EA6C8"  # Внешний цвет радужки
+IRIS_INNER_COLOR = "#10283A"  # Внутренний цвет радужки (зрачок)
+IRIS_HIGHLIGHT_COLOR = "#D9F3F8"  # Цвет бликов
 IRIS_HIGHLIGHT_SIZE = 0.2  # Размер блика относительно радиуса (0-1)
 IRIS_HIGHLIGHT_OFFSET = 0.3  # Смещение блика относительно радиуса (0-1)
 
@@ -98,14 +114,33 @@ EYEBROW_SMOOTHING = True  # Сглаживание бровей
 LINE_THICKNESS = 0.7  # Толщина линий относительно масштаба (0.3-1.5)
 LINE_SMOOTHING = True  # Сглаживание линий
 
-# Color scheme https://coolors.co/0c2951-46aafe-f6e27f-a30b37-a9fff7
-# Все цвета в HEX формате
-BACKGROUND_COLOR = "#0C2951"  # RGB(12, 41, 81)
-BACKGROUND_DARK_COLOR = "#081B35"  # RGB(8, 27, 53)
-TEXT_COLOR = "#A9FFF7"  # RGB(169, 255, 247)
-MESH_COLOR = "#46AAFE"  # RGB(70, 170, 254)
-MESH_LIGHT_COLOR = "#AEDAFF"  # RGB(174, 218, 255)
-MESH_DARK_COLOR = "#0170CB"  # RGB(1, 112, 203)
+# Diagnostic-view palettes. Unlike the camera image, the generated tracking
+# view follows the application appearance mode.
+TRACKING_PALETTE_DARK = {
+    "background": "#173A52",
+    "background_dark": "#10283A",
+    "mesh": "#4EA6C8",
+    "mesh_light": "#8DD3E8",
+    "mesh_dark": "#204A62",
+    "status_text": "#9CCBD9",
+}
+
+TRACKING_PALETTE_LIGHT = {
+    "background": "#A7B2BC",
+    "background_dark": "#929FAA",
+    "mesh": "#285474",
+    "mesh_light": "#668DA9",
+    "mesh_dark": "#18364D",
+    "status_text": "#294A63",
+}
+
+# Backward-compatible aliases for code that imports individual colors.
+BACKGROUND_COLOR = TRACKING_PALETTE_DARK["background"]
+BACKGROUND_DARK_COLOR = TRACKING_PALETTE_DARK["background_dark"]
+MESH_COLOR = TRACKING_PALETTE_DARK["mesh"]
+MESH_LIGHT_COLOR = TRACKING_PALETTE_DARK["mesh_light"]
+MESH_DARK_COLOR = TRACKING_PALETTE_DARK["mesh_dark"]
+TEXT_COLOR = "#D9F3F8"
 IRIS_COLOR = "#F6E27F"  # RGB(246, 226, 127)
 EYE_INNER_CORNER_COLOR = "#A30B37"  # RGB(163, 11, 55)
 EYE_OUTER_CORNER_COLOR = "#A30B37"  # RGB(163, 11, 55)

@@ -36,6 +36,11 @@ class AppState:
             STRABISMUS_THRESHOLD_KEY,
             STRABISMUS_THRESHOLD
         )
+        # Presentation-only value. The persisted threshold remains a ratio
+        # (for example 0.50), while the UI displays it as 50.0%.
+        self.threshold_display = ctk.StringVar(
+            value=f"{self.threshold_value.get() * 100:.1f}%"
+        )
         self.overlay_color = self._create_var_with_trace(
             ctk.StringVar,
             OVERLAY_COLOR_KEY,
@@ -52,7 +57,7 @@ class AppState:
             APPEARANCE_MODE_LIGHT
         )
         # Динамическое значение, не требует сохранения
-        self.eye_distance = ctk.StringVar(value="0.000")
+        self.eye_distance = ctk.StringVar(value="N/A")
 
     def _create_var_with_trace(self, var_class, settings_key, default_value):
         """Создает переменную с привязкой к Settings"""

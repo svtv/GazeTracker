@@ -1,5 +1,6 @@
 # Standard library imports
 import collections
+from pathlib import Path
 import tkinter as tk
 import traceback
 
@@ -20,6 +21,9 @@ from src.config import (
     CHART_BUFFER_SIZE,
     MAIN_WINDOW_POSITION_KEY,
     THRESHOLD_KNOB_STEP, THRESHOLD_KNOB_STEP_PRECISE,
+    DATA_ACCENT_COLOR, THRESHOLD_COLOR,
+    CAMERA_LETTERBOX_COLOR,
+    ALERT_HYSTERESIS, ALERT_CONFIRMATION_FRAMES,
 )
 from src.main_model import MainModel
 from src.overlay import OverlayWindow
@@ -31,6 +35,11 @@ from src.settings import Settings
 # Configure matplotlib to use Agg backend which doesn't require GUI
 import matplotlib
 matplotlib.use('Agg')
+
+# Load the product palette before any CustomTkinter widgets are created.
+ctk.set_default_color_theme(
+    str(Path(__file__).resolve().parent / "themes" / "clinical_luxury.json")
+)
 
 class App(ctk.CTk):
     """Main application window"""
@@ -66,6 +75,9 @@ class App(ctk.CTk):
         self.threshold_entry = None
         self.eye_distance_entry = None
         self.model = None
+        self._alert_active = False
+        self._alert_candidate_state = None
+        self._alert_candidate_frames = 0
 
         # Application state initialization
         self.app_state = AppState()
@@ -115,10 +127,12 @@ class App(ctk.CTk):
         self.chart_line = ctkchart.CTkLine(
             master=self.chart,
             fill="enabled",
+            color=DATA_ACCENT_COLOR,
+            fill_color=("#C9DDE5", "#294956"),
         )
         self.chart_threshold_line = ctkchart.CTkLine(
             master=self.chart,
-            color="red",
+            color=THRESHOLD_COLOR,
         )
 
         # Set threshold knob value
@@ -166,7 +180,7 @@ class App(ctk.CTk):
 
         chart_label = ctk.CTkLabel(
             self.threshold_inner_frame1,
-            text="Eye Distance",
+            text="Interocular Ratio",
             font=app_font_small
         )
 
@@ -176,7 +190,7 @@ class App(ctk.CTk):
             height=26,
             border_width=0,
             fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1 if is_dark_mode else 0],
-            text_color="#768df1", # Default color of CTkLine
+            text_color=DATA_ACCENT_COLOR,
             textvariable=self.app_state.eye_distance,
             font=app_font_small,
             justify=tk.CENTER,
@@ -224,8 +238,8 @@ class App(ctk.CTk):
             height=26,
             border_width=0,
             fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"][1 if is_dark_mode else 0],
-            text_color="red",
-            textvariable=self.app_state.threshold_value,
+            text_color=THRESHOLD_COLOR,
+            textvariable=self.app_state.threshold_display,
             font=app_font_small,
             justify=tk.CENTER,
         )
@@ -251,7 +265,7 @@ class App(ctk.CTk):
             threshold_frame,
             text="Use mouse wheel to adjust\nAlert Threshold.\nHold Ctrl for fine-tuning",
             font=app_font_small,
-            text_color=ctk.ThemeManager.theme["CTkButton"]["text_color_disabled"][1],
+            text_color=ctk.ThemeManager.theme["CTkButton"]["text_color_disabled"],
             wraplength=200,
         )
 
@@ -281,6 +295,8 @@ class App(ctk.CTk):
         self.threshold_inner_frame2.grid_columnconfigure((0, 1), weight=1)
         threshold_label.grid(row=0, column=0, sticky='w')
         self.threshold_entry.grid(row=0, column=1, sticky='e')
+        self.threshold_entry.bind("<Return>", self._commit_threshold_entry)
+        self.threshold_entry.bind("<FocusOut>", self._commit_threshold_entry)
 
         self.threshold_knob.pack(pady=(0, 5), anchor="center")
         threshold_knob_label.pack(pady=(0, 10), anchor="center")
@@ -427,11 +443,21 @@ class App(ctk.CTk):
             # Process results
             self.face_detected = bool(mesh_results.multi_face_landmarks)
             eye_distance_raw = results['normalized_eye_distance']
-            self.app_state.eye_distance.set(self.format_eye_distance(eye_distance_raw))
-            strabismus_detected = eye_distance_raw > results['threshold_value']
+            self.app_state.eye_distance.set(
+                self.format_eye_distance(eye_distance_raw)
+                if self.face_detected
+                else "N/A"
+            )
+            alert_active = self._update_alert_state(
+                eye_distance_raw,
+                self.face_detected,
+                results['threshold_value']
+            )
 
             # Show/hide overlay based on strabismus detection
-            self.overlay.show(strabismus_detected and self.app_state.fullscreen_alert.get())
+            self.overlay.show(
+                alert_active and self.app_state.fullscreen_alert.get()
+            )
 
             # Calculate eye distance percentage
             eye_distance_percent = (
@@ -440,14 +466,15 @@ class App(ctk.CTk):
             )
 
             # Create a line for the line chart
-            self.chart_data.append(100 * eye_distance_percent)
+            if self.face_detected:
+                self.chart_data.append(float(100 * eye_distance_percent))
 
             # Calculate and append threshold percentage
             threshold_percent = (
                 (self.app_state.threshold_value.get() - STRABISMUS_RANGE_MIN) /
                 (STRABISMUS_RANGE_MAX - STRABISMUS_RANGE_MIN)
             )
-            self.chart_threshold_data.append(100 * threshold_percent)
+            self.chart_threshold_data.append(float(100 * threshold_percent))
 
             self.chart.show_data(line=self.chart_line, data=list(self.chart_data))
             self.chart.show_data(line=self.chart_threshold_line, data=list(self.chart_threshold_data))
@@ -463,8 +490,11 @@ class App(ctk.CTk):
                 # Convert frame to PIL format
                 image = Image.fromarray(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
 
-                # Resize image to match video frame dimensions
-                image = image.resize((video_width, video_height))
+                image = self._fit_video_image(
+                    image,
+                    video_width,
+                    video_height
+                )
 
                 # Convert to CTk format
                 ctk_image = ctk.CTkImage(image, size=(video_width, video_height))
@@ -476,6 +506,90 @@ class App(ctk.CTk):
         except Exception as e:
             print(f"Error updating video: {e}")
             traceback.print_exc()
+
+    def _fit_video_image(self, image, target_width, target_height):
+        """Fit a frame into the GUI without changing its aspect ratio.
+
+        Camera frames use "contain" so the entire image remains visible with
+        charcoal letterbox padding. The generated tracking view uses "cover"
+        so its background and grid fill the available area without distortion.
+        """
+        Image = self.modules['PIL']
+
+        source_width, source_height = image.size
+        if source_width <= 0 or source_height <= 0:
+            return image
+
+        show_camera = self.app_state.show_camera.get()
+        scale_function = min if show_camera else max
+        scale = scale_function(
+            target_width / source_width,
+            target_height / source_height
+        )
+        fitted_width = max(1, round(source_width * scale))
+        fitted_height = max(1, round(source_height * scale))
+
+        # Resampling is nested under Image.Resampling in current Pillow, but
+        # remains directly available on Image in older supported releases.
+        resampling = getattr(Image, "Resampling", Image)
+        fitted_image = image.resize(
+            (fitted_width, fitted_height),
+            resample=resampling.LANCZOS
+        )
+
+        if not show_camera:
+            # Center-crop only the peripheral part of the generated view.
+            left = (fitted_width - target_width) // 2
+            top = (fitted_height - target_height) // 2
+            return fitted_image.crop((
+                left,
+                top,
+                left + target_width,
+                top + target_height
+            ))
+
+        canvas = Image.new(
+            "RGB",
+            (target_width, target_height),
+            color=CAMERA_LETTERBOX_COLOR
+        )
+        offset = (
+            (target_width - fitted_width) // 2,
+            (target_height - fitted_height) // 2
+        )
+        canvas.paste(fitted_image, offset)
+        return canvas
+
+    def _update_alert_state(self, ratio, face_detected, threshold):
+        """Apply hysteresis and consecutive-frame confirmation to alerts."""
+        if not face_detected:
+            self._alert_active = False
+            self._alert_candidate_state = None
+            self._alert_candidate_frames = 0
+            return False
+
+        if self._alert_active:
+            desired_state = ratio >= threshold - ALERT_HYSTERESIS
+        else:
+            desired_state = ratio > threshold
+
+        if desired_state == self._alert_active:
+            self._alert_candidate_state = None
+            self._alert_candidate_frames = 0
+            return self._alert_active
+
+        if desired_state != self._alert_candidate_state:
+            self._alert_candidate_state = desired_state
+            self._alert_candidate_frames = 1
+        else:
+            self._alert_candidate_frames += 1
+
+        if self._alert_candidate_frames >= ALERT_CONFIRMATION_FRAMES:
+            self._alert_active = desired_state
+            self._alert_candidate_state = None
+            self._alert_candidate_frames = 0
+
+        return self._alert_active
 
     def on_closing(self):
         """Clean up resources and handle window close"""
@@ -515,7 +629,7 @@ class App(ctk.CTk):
         Settings.set(APP_GEOMETRY_KEY, str(new_geometry))
 
     def _update_threshold_by_entry(self, *args):  # pylint: disable=unused-argument
-        """Update threshold knob value from entry field.
+        """Update threshold presentation and knob from the internal ratio.
         Args:
             *args: Variable arguments from StringVar trace callback (unused but required)
         """
@@ -525,7 +639,24 @@ class App(ctk.CTk):
                 min(
                     STRABISMUS_RANGE_MAX,
                     float(self.app_state.threshold_value.get())))
+            self.app_state.threshold_display.set(self.format_ratio(value))
             self.threshold_knob.set(value)
+
+    def _commit_threshold_entry(self, _event=None):
+        """Convert an entered percentage back to the internal ratio."""
+        try:
+            text = self.app_state.threshold_display.get()
+            percent = float(text.strip().rstrip("%").replace(",", "."))
+            value = max(
+                STRABISMUS_RANGE_MIN,
+                min(STRABISMUS_RANGE_MAX, percent / 100.0)
+            )
+            self.app_state.threshold_value.set(value)
+        except (TypeError, ValueError, tk.TclError):
+            value = self.app_state.threshold_value.get()
+
+        # Always restore one canonical, unambiguous representation.
+        self.app_state.threshold_display.set(self.format_ratio(value))
 
     def _on_color_picker_click(self):
         """Handle color picker button click"""
@@ -546,6 +677,7 @@ class App(ctk.CTk):
         """Handle theme change"""
         is_dark_mode = not self.app_state.light_theme.get()
         ctk.set_appearance_mode("Dark" if is_dark_mode else "Light")
+        self.model.image_processor.set_light_theme(not is_dark_mode)
 
         fg_color_ctk = ctk.ThemeManager.theme["CTk"]["fg_color"][1 if is_dark_mode else 0]
         fg_color_ctkframe = ctk.ThemeManager.theme["CTkFrame"]["fg_color"][1 if is_dark_mode else 0]
@@ -584,7 +716,12 @@ class App(ctk.CTk):
         """Format eye distance for display"""
         if eye_distance is None:
             return "N/A"
-        return f"{eye_distance:.3f}"
+        return App.format_ratio(eye_distance)
+
+    @staticmethod
+    def format_ratio(value):
+        """Format an internal 0..1 ratio as a user-facing percentage."""
+        return f"{value * 100:.1f}%"
 
 if __name__ == "__main__":
     app = App()

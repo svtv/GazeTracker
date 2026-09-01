@@ -6,6 +6,7 @@ import numpy as np
 from .config import (
     BACKGROUND_COLOR, BACKGROUND_DARK_COLOR,
     MESH_COLOR, MESH_LIGHT_COLOR, MESH_DARK_COLOR,
+    TRACKING_PALETTE_DARK, TRACKING_PALETTE_LIGHT,
     LEFT_IRIS, RIGHT_IRIS,
     L_H_LEFT, L_H_RIGHT,
     R_H_LEFT, R_H_RIGHT,
@@ -23,6 +24,8 @@ from .config import (
     EYEBROW_SMOOTHING,
     LINE_THICKNESS,
     LINE_SMOOTHING,
+    LANDMARK_SMOOTHING_ALPHA,
+    RATIO_SMOOTHING_ALPHA,
 )
 
 class ImageProcessor:
@@ -38,6 +41,8 @@ class ImageProcessor:
         self.mesh_light_color = MESH_LIGHT_COLOR
         self.background_color = BACKGROUND_COLOR
         self.brightness_increase = 40
+
+        self.set_light_theme(self.app.app_state.light_theme.get())
 
         # Настройки отображения
         self.show_distance = SHOW_DISTANCE
@@ -56,6 +61,11 @@ class ImageProcessor:
         self.eyebrow_smoothing = EYEBROW_SMOOTHING
         self.line_thickness = LINE_THICKNESS
         self.line_smoothing = LINE_SMOOTHING
+
+        # Previous EMA state used only while a face remains continuously
+        # tracked. It is reset immediately after the face is lost.
+        self._smoothed_mesh_points = None
+        self._smoothed_ratio = None
 
         # Предварительно вычисляем цвета для _draw_mesh
         self._mesh_color_bgr = self.rgb_to_bgr(self.hex_to_rgb(self.mesh_color))
@@ -81,6 +91,24 @@ class ImageProcessor:
         self._iris_color_bgr = self.rgb_to_bgr(self.hex_to_rgb(self.mesh_light_color))
         self._background_color_bgr = self.rgb_to_bgr(self.hex_to_rgb(self.background_color))
 
+    def set_light_theme(self, is_light_theme):
+        """Select colors for the generated tracking view."""
+        palette = (
+            TRACKING_PALETTE_LIGHT
+            if is_light_theme
+            else TRACKING_PALETTE_DARK
+        )
+        self.background_color = palette["background"]
+        self.background_dark_color = palette["background_dark"]
+        self.mesh_color = palette["mesh"]
+        self.mesh_light_color = palette["mesh_light"]
+        self.mesh_dark_color = palette["mesh_dark"]
+        self.status_text_color = palette["status_text"]
+
+        # During __init__ the cached BGR values do not exist yet.
+        if hasattr(self, "_mesh_color_bgr"):
+            self._update_colors()
+
     def update_colors(self, color_name, hex_color):
         """Update color values"""
         # rgb_color = self.hex_to_rgb(hex_color)
@@ -96,6 +124,8 @@ class ImageProcessor:
             self.mesh_light_color = hex_color
         elif color_name == "Background":
             self.background_color = hex_color
+
+        self._update_colors()
 
     def update_brightness(self, value):
         """Update brightness increase value"""
@@ -417,6 +447,33 @@ class ImageProcessor:
             for point in face_landmarks.landmark
         ])
 
+    def _smooth_landmarks(self, mesh_points):
+        """Reduce frame-to-frame landmark jitter with an exponential EMA."""
+        current = mesh_points.astype(np.float32)
+
+        if (
+            self._smoothed_mesh_points is None
+            or self._smoothed_mesh_points.shape != current.shape
+        ):
+            self._smoothed_mesh_points = current.copy()
+        else:
+            alpha = LANDMARK_SMOOTHING_ALPHA
+            self._smoothed_mesh_points += alpha * (
+                current - self._smoothed_mesh_points
+            )
+
+        return self._smoothed_mesh_points.copy()
+
+    def _smooth_ratio(self, ratio):
+        """Stabilize the value shown in the UI and used by alert logic."""
+        ratio = float(ratio)
+        if self._smoothed_ratio is None:
+            self._smoothed_ratio = ratio
+        else:
+            alpha = RATIO_SMOOTHING_ALPHA
+            self._smoothed_ratio += alpha * (ratio - self._smoothed_ratio)
+        return float(self._smoothed_ratio)
+
     def _process_eyes(self, mesh_points):
         """Process eyes and calculate normalized eye distance"""
         # Process eyes
@@ -559,24 +616,17 @@ class ImageProcessor:
         draw_eye(centered_center_left, l_radius)
         draw_eye(centered_center_right, r_radius)
 
-        # Добавляем текст с расстоянием (вычисляем только если нужно)
-        if self.show_distance:
-            eye_distance = np.linalg.norm(centered_center_right - centered_center_left)
-            cv.putText(frame, f"Eye Distance: {eye_distance:.1f}px",
-                      (10, height - 20), cv.FONT_HERSHEY_SIMPLEX, 0.7, self._mesh_color_bgr, 1, cv.LINE_AA)
-
         return frame
 
-    def _draw_text(self, frame, normalized_eye_distance):
-        """Draw eye distance text on frame"""
-        screen_text = self.app.format_eye_distance(normalized_eye_distance)
-        mesh_dark_rgb = self.hex_to_rgb(self.mesh_dark_color)
-        screen_text_color = self.rgb_to_bgr(mesh_dark_rgb)
+    def _draw_bottom_status(self, frame, screen_text):
+        """Draw one consistently styled status line below the visualization."""
+        status_text_rgb = self.hex_to_rgb(self.status_text_color)
+        screen_text_color = self.rgb_to_bgr(status_text_rgb)
 
         screen_text_size = cv.getTextSize(
             text=screen_text,
             fontFace=cv.FONT_HERSHEY_SIMPLEX,
-            fontScale=0.4,
+            fontScale=0.55,
             thickness=1)[0]
 
         cv.putText(
@@ -584,10 +634,17 @@ class ImageProcessor:
             text=screen_text,
             org=((frame.shape[1] - screen_text_size[0]) // 2, frame.shape[0] - 20),
             fontFace=cv.FONT_HERSHEY_SIMPLEX,
-            fontScale=0.4,
+            fontScale=0.55,
             color=screen_text_color,
             thickness=1,
             lineType=cv.LINE_AA)
+
+    def _draw_text(self, frame, normalized_eye_distance):
+        """Draw the current ratio once, in user-facing percentage units."""
+        if not self.show_distance:
+            return
+        ratio = self.app.format_eye_distance(normalized_eye_distance)
+        self._draw_bottom_status(frame, f"Interocular Ratio  {ratio}")
 
     def _process_face_mesh_impl(self, frame, mesh_results):
         """Process face mesh detection results and draw on frame"""
@@ -600,6 +657,7 @@ class ImageProcessor:
         # Process landmarks
         face_landmarks = mesh_results.multi_face_landmarks[0]
         mesh_points = self._process_landmarks(face_landmarks, img_w, img_h)
+        mesh_points = self._smooth_landmarks(mesh_points)
 
         # Process eyes
         (
@@ -609,6 +667,9 @@ class ImageProcessor:
             r_radius,
             normalized_eye_distance
         ) = self._process_eyes(mesh_points)
+        normalized_eye_distance = self._smooth_ratio(
+            normalized_eye_distance
+        )
 
         # Center mesh points if needed
         if not self.app.app_state.show_camera.get():
@@ -636,9 +697,8 @@ class ImageProcessor:
 
     def _process_face_mesh_noface(self, frame):
 
-        screen_text = "No face detected"
-        mesh_dark_rgb = self.hex_to_rgb(self.mesh_dark_color)
-        screen_text_color = self.rgb_to_bgr(mesh_dark_rgb)
+        self._smoothed_mesh_points = None
+        self._smoothed_ratio = None
 
         # If show_camera is off, create a gradient background
         if not self.app.app_state.show_camera.get():
@@ -652,21 +712,7 @@ class ImageProcessor:
                 brightness_increase=self.brightness_increase
             )
 
-        screen_text_size = cv.getTextSize(
-            text=screen_text,
-            fontFace=cv.FONT_HERSHEY_SIMPLEX,
-            fontScale=0.4,
-            thickness=1)[0]
-
-        cv.putText(
-            img=frame,
-            text=screen_text,
-            org=((frame.shape[1] - screen_text_size[0]) // 2, frame.shape[0] - 20),
-            fontFace=cv.FONT_HERSHEY_SIMPLEX,
-            fontScale=0.4,
-            color=screen_text_color,
-            thickness=1,
-            lineType=cv.LINE_AA)
+        self._draw_bottom_status(frame, "No face detected")
 
         return {
             'frame': frame,
