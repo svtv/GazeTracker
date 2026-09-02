@@ -10,6 +10,7 @@ APP_FONT_SIZE_TITLE = 16
 # third-party widgets and data/status colors that CustomTkinter does not theme.
 DATA_ACCENT_COLOR = ("#397FA5", "#68B4D2")
 THRESHOLD_COLOR = ("#9C6946", "#E0A06F")
+CHART_FILL_COLOR = ("#C9DDE5", "#294956")
 CAMERA_LETTERBOX_COLOR = "#151A1D"
 
 # Main window size

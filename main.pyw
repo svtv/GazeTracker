@@ -22,7 +22,7 @@ from src.config import (
     CHART_BUFFER_SIZE,
     MAIN_WINDOW_POSITION_KEY,
     THRESHOLD_KNOB_STEP, THRESHOLD_KNOB_STEP_PRECISE,
-    DATA_ACCENT_COLOR, THRESHOLD_COLOR,
+    DATA_ACCENT_COLOR, THRESHOLD_COLOR, CHART_FILL_COLOR,
     CAMERA_LETTERBOX_COLOR,
 )
 from src.main_model import MainModel
@@ -32,6 +32,7 @@ from src.color_settings import ColorSettingsWindow
 from src.app_state import AppState
 from src.settings import Settings
 from src.memory_monitor import process_rss_bytes, format_bytes
+from src.chart_theme import prepare_chart_theme, recolor_chart
 
 # Configure matplotlib to use Agg backend which doesn't require GUI
 import matplotlib
@@ -129,19 +130,11 @@ class App(ctk.CTk):
             master=self.chart,
             fill="enabled",
             color=DATA_ACCENT_COLOR,
-            fill_color=("#C9DDE5", "#294956"),
+            fill_color=CHART_FILL_COLOR,
         )
         self.chart_threshold_line = ctkchart.CTkLine(
             master=self.chart,
             color=THRESHOLD_COLOR,
-        )
-
-        # Seed the chart once. Subsequent calls append only one new sample;
-        # CTkChart.show_data() appends rather than replacing existing data.
-        self.chart.show_data(line=self.chart_line, data=list(self.chart_data))
-        self.chart.show_data(
-            line=self.chart_threshold_line,
-            data=list(self.chart_threshold_data),
         )
 
         # Set threshold knob value
@@ -489,17 +482,17 @@ class App(ctk.CTk):
             )
             self.chart_threshold_data.append(float(100 * threshold_percent))
 
-            # CTkChart retains every value passed to show_data(). Trim its
-            # private history, then append only the current sample.
+            # CTkChart.show_data() appends rather than replaces data. Its
+            # streaming redraw is unreliable for a single point, so retain a
+            # bounded internal tail and redraw the complete visible window.
             self.chart.clear_data()
-            if self.face_detected:
-                self.chart.show_data(
-                    line=self.chart_line,
-                    data=[float(100 * eye_distance_percent)],
-                )
+            self.chart.show_data(
+                line=self.chart_line,
+                data=list(self.chart_data),
+            )
             self.chart.show_data(
                 line=self.chart_threshold_line,
-                data=[float(100 * threshold_percent)],
+                data=list(self.chart_threshold_data),
             )
 
             # Get processed frame
@@ -695,7 +688,13 @@ class App(ctk.CTk):
     def _on_theme_toggle(self):
         """Handle theme change"""
         is_dark_mode = not self.app_state.light_theme.get()
-        ctk.set_appearance_mode("Dark" if is_dark_mode else "Light")
+        appearance_mode = "Dark" if is_dark_mode else "Light"
+
+        # CTkChart has an independent polling ThemeManager. Synchronize it
+        # before changing CustomTkinter so its background thread does not run a
+        # delayed full replay of the live chart.
+        prepare_chart_theme(appearance_mode)
+        ctk.set_appearance_mode(appearance_mode)
         self.model.image_processor.set_light_theme(not is_dark_mode)
 
         fg_color_ctk = ctk.ThemeManager.theme["CTk"]["fg_color"][1 if is_dark_mode else 0]
@@ -703,10 +702,12 @@ class App(ctk.CTk):
 
         self.threshold_inner_frame1.configure(fg_color=fg_color_ctkframe)
         self.eye_distance_entry.configure(fg_color=fg_color_ctk)
-        self.chart.configure(
-            axis_color=fg_color_ctk,
-            bg_color=fg_color_ctk,
-            fg_color=fg_color_ctk)
+        recolor_chart(
+            self.chart,
+            appearance_mode,
+            fg_color_ctk,
+            (DATA_ACCENT_COLOR, THRESHOLD_COLOR, CHART_FILL_COLOR),
+        )
         self.threshold_inner_frame2.configure(fg_color=fg_color_ctkframe)
         self.threshold_entry.configure(fg_color=fg_color_ctk)
 

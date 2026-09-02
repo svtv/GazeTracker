@@ -87,18 +87,27 @@ class OverlayWindow:
         if not self.handles.wc:
             self._register_window_class()
 
-        # Get screen dimensions
+        # Use the primary monitor's work area rather than its exact full-screen
+        # bounds. This keeps the taskbar available and prevents Windows from
+        # classifying the alert as a full-screen app and enabling Do Not
+        # Disturb automatically.
         # pylint: disable=c-extension-no-member
-        screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
-        # pylint: disable=c-extension-no-member
-        screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+        primary_monitor = win32api.MonitorFromPoint(
+            (0, 0),
+            win32con.MONITOR_DEFAULTTOPRIMARY,
+        )
+        monitor_info = win32api.GetMonitorInfo(primary_monitor)
+        left, top, right, bottom = monitor_info["Work"]
+        work_width = right - left
+        work_height = bottom - top
 
         # Extended window styles for transparency and click-through
         ex_style = (
             win32con.WS_EX_LAYERED |      # For transparency
             win32con.WS_EX_TRANSPARENT |   # Click-through
             win32con.WS_EX_TOPMOST |       # Always on top
-            win32con.WS_EX_NOACTIVATE     # Don't activate/focus
+            win32con.WS_EX_NOACTIVATE |    # Don't activate/focus
+            win32con.WS_EX_TOOLWINDOW     # No taskbar or Alt+Tab entry
         )
 
         # Create window
@@ -108,7 +117,7 @@ class OverlayWindow:
             self.handles.wc.lpszClassName,
             None,
             win32con.WS_POPUP,
-            0, 0, screen_width, screen_height,
+            left, top, work_width, work_height,
             None,
             None,
             self.handles.wc.hInstance,
