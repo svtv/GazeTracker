@@ -48,6 +48,26 @@ class MainModel:
         except queue.Empty:
             return None
 
+    def _publish_latest_result(self, results):
+        """Publish without blocking and discard an obsolete queued frame."""
+        try:
+            self.process_queue.put_nowait(results)
+            return
+        except queue.Full:
+            pass
+
+        try:
+            self.process_queue.get_nowait()
+        except queue.Empty:
+            pass
+
+        try:
+            self.process_queue.put_nowait(results)
+        except queue.Full:
+            # The UI/producer raced with us. Keeping either frame is safe; the
+            # next processing iteration will publish a newer one.
+            pass
+
     def _processing_loop(self):
         """Background thread for continuous frame processing"""
         while self.should_process:
@@ -65,7 +85,7 @@ class MainModel:
                     # Image = self.modules['PIL']
 
                     ret, frame = self.cap.read()
-                    if ret and not frame is None:
+                    if ret and frame is not None:
                         # Apply mirror effect if enabled
                         if self.app.app_state.mirror_effect.get():
                             frame = cv.flip(frame, 1)
@@ -82,7 +102,7 @@ class MainModel:
                         )
                         results['mesh_results'] = mesh_results
                         results['threshold_value'] = self.app.app_state.threshold_value.get()
-                        self.process_queue.put(results)
+                        self._publish_latest_result(results)
 
                 # Wait for next frame
                 time.sleep(self.refresh_delay_ms / 1000)

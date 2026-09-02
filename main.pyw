@@ -17,6 +17,7 @@ from src.config import (
     APP_GEOMETRY, APP_GEOMETRY_KEY,
     LOADING_WINDOW_WIDTH, LOADING_WINDOW_HEIGHT, LOADING_WINDOW_GEOMETRY,
     REFRESH_DELAY_MS,
+    MEMORY_LOG_INTERVAL_SECONDS,
     STRABISMUS_RANGE_MIN, STRABISMUS_RANGE_MAX,
     CHART_BUFFER_SIZE,
     MAIN_WINDOW_POSITION_KEY,
@@ -30,6 +31,7 @@ from src.widgets.imageknobex import ImageKnobEx
 from src.color_settings import ColorSettingsWindow
 from src.app_state import AppState
 from src.settings import Settings
+from src.memory_monitor import process_rss_bytes, format_bytes
 
 # Configure matplotlib to use Agg backend which doesn't require GUI
 import matplotlib
@@ -69,11 +71,14 @@ class App(ctk.CTk):
         self.app_geometry = None
         self.video_frame = None
         self.video_label = None
+        self.video_image = None
         self.threshold_inner_frame1 = None
         self.threshold_inner_frame2 = None
         self.threshold_entry = None
         self.eye_distance_entry = None
         self.model = None
+        self._closing = False
+        self._memory_log_after_id = None
 
         # Application state initialization
         self.app_state = AppState()
@@ -131,6 +136,14 @@ class App(ctk.CTk):
             color=THRESHOLD_COLOR,
         )
 
+        # Seed the chart once. Subsequent calls append only one new sample;
+        # CTkChart.show_data() appends rather than replacing existing data.
+        self.chart.show_data(line=self.chart_line, data=list(self.chart_data))
+        self.chart.show_data(
+            line=self.chart_threshold_line,
+            data=list(self.chart_threshold_data),
+        )
+
         # Set threshold knob value
         self.threshold_knob.set(self.app_state.threshold_value.get())
 
@@ -139,6 +152,7 @@ class App(ctk.CTk):
 
         # Start checking for results
         self.check_results()
+        self._schedule_memory_log()
 
     def _initialize_main_ui(self):
         """Initialize main interface after loading"""
@@ -475,8 +489,18 @@ class App(ctk.CTk):
             )
             self.chart_threshold_data.append(float(100 * threshold_percent))
 
-            self.chart.show_data(line=self.chart_line, data=list(self.chart_data))
-            self.chart.show_data(line=self.chart_threshold_line, data=list(self.chart_threshold_data))
+            # CTkChart retains every value passed to show_data(). Trim its
+            # private history, then append only the current sample.
+            self.chart.clear_data()
+            if self.face_detected:
+                self.chart.show_data(
+                    line=self.chart_line,
+                    data=[float(100 * eye_distance_percent)],
+                )
+            self.chart.show_data(
+                line=self.chart_threshold_line,
+                data=[float(100 * threshold_percent)],
+            )
 
             # Get processed frame
             frame = results['frame']
@@ -496,11 +520,17 @@ class App(ctk.CTk):
                 )
 
                 # Convert to CTk format
-                ctk_image = ctk.CTkImage(image, size=(video_width, video_height))
-
-                # Update video label
-                self.video_label.configure(image=ctk_image)
-                self.video_label.image = ctk_image
+                if self.video_image is None:
+                    self.video_image = ctk.CTkImage(
+                        light_image=image,
+                        size=(video_width, video_height),
+                    )
+                    self.video_label.configure(image=self.video_image)
+                else:
+                    self.video_image.configure(
+                        light_image=image,
+                        size=(video_width, video_height),
+                    )
 
         except Exception as e:
             print(f"Error updating video: {e}")
@@ -562,23 +592,44 @@ class App(ctk.CTk):
     def on_closing(self):
         """Clean up resources and handle window close"""
 
+        if self._closing:
+            return
+        self._closing = True
+
         # Hide main window first
         self.withdraw()
 
         # Stop processing thread
-        if self.model:
-            self.model.stop()
+        try:
+            if self.model:
+                self.model.stop()
 
-        # Close overlay window
-        if self.overlay:
-            self.overlay.close()
+            if self._memory_log_after_id is not None:
+                self.after_cancel(self._memory_log_after_id)
+                self._memory_log_after_id = None
 
-        # Release camera
-        if self.cap:
-            self.cap.release()
+            if self.overlay:
+                self.overlay.close()
 
-        # Destroy main window
-        self.quit()
+            if self.cap:
+                self.cap.release()
+
+            # FaceMesh owns native MediaPipe resources and worker threads.
+            if self.mp_face_mesh:
+                self.mp_face_mesh.close()
+        finally:
+            self.destroy()
+
+    def _schedule_memory_log(self):
+        """Log process RSS periodically without retaining historical samples."""
+        if self._closing or MEMORY_LOG_INTERVAL_SECONDS <= 0:
+            return
+        rss = process_rss_bytes()
+        print(f"Process memory (RSS): {format_bytes(rss)}")
+        self._memory_log_after_id = self.after(
+            int(MEMORY_LOG_INTERVAL_SECONDS * 1000),
+            self._schedule_memory_log,
+        )
 
     def _on_window_configure(self, event):
         """Save new window size when it changes"""
@@ -677,7 +728,8 @@ class App(ctk.CTk):
 
         finally:
             # Schedule next check
-            self.after(REFRESH_DELAY_MS, self.check_results)
+            if not self._closing:
+                self.after(REFRESH_DELAY_MS, self.check_results)
 
     @staticmethod
     def format_eye_distance(eye_distance):

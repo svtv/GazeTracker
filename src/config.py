@@ -66,6 +66,10 @@ STRABISMUS_THRESHOLD_KEY = 'strabismus.threshold'
 # REFRESH_DELAY_MS: Delay in milliseconds between each frame refresh
 REFRESH_DELAY_MS = 50
 
+# Periodic process-memory diagnostics. Set to 0 to disable. The monitor uses
+# operating-system counters and does not retain frame history.
+MEMORY_LOG_INTERVAL_SECONDS = 300
+
 # Temporal stabilization of detected face landmarks. Lower values are
 # smoother but react more slowly to intentional movement.
 LANDMARK_SMOOTHING_ALPHA = 0.20

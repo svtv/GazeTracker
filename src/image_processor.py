@@ -67,6 +67,11 @@ class ImageProcessor:
         self._smoothed_mesh_points = None
         self._smoothed_ratio = None
 
+        # Generated diagnostic backgrounds are expensive (several full-frame
+        # NumPy arrays). Keep one immutable base and copy it before drawing.
+        self._background_cache_key = None
+        self._background_cache = None
+
         # Предварительно вычисляем цвета для _draw_mesh
         self._mesh_color_bgr = self.rgb_to_bgr(self.hex_to_rgb(self.mesh_color))
         self._iris_color_bgr = self.rgb_to_bgr(self.hex_to_rgb(self.mesh_light_color))
@@ -104,6 +109,7 @@ class ImageProcessor:
         self.mesh_light_color = palette["mesh_light"]
         self.mesh_dark_color = palette["mesh_dark"]
         self.status_text_color = palette["status_text"]
+        self._invalidate_background_cache()
 
         # During __init__ the cached BGR values do not exist yet.
         if hasattr(self, "_mesh_color_bgr"):
@@ -126,10 +132,35 @@ class ImageProcessor:
             self.background_color = hex_color
 
         self._update_colors()
+        self._invalidate_background_cache()
 
     def update_brightness(self, value):
         """Update brightness increase value"""
         self.brightness_increase = int(value)
+        self._invalidate_background_cache()
+
+    def _invalidate_background_cache(self):
+        """Drop the generated background after a visual setting changes."""
+        self._background_cache_key = None
+        self._background_cache = None
+
+    def _get_gradient_background(self, height, width, base_color):
+        """Return a writable copy of the cached diagnostic background."""
+        key = (
+            int(height),
+            int(width),
+            tuple(base_color),
+            int(self.brightness_increase),
+        )
+        if self._background_cache_key != key:
+            self._background_cache = self.create_gradient_background(
+                height=height,
+                width=width,
+                base_color=base_color,
+                brightness_increase=self.brightness_increase,
+            )
+            self._background_cache_key = key
+        return self._background_cache.copy()
 
     @staticmethod
     def hex_to_rgb(hex_color):
@@ -432,11 +463,10 @@ class ImageProcessor:
             background_rgb = self.hex_to_rgb(self.background_color)
             background_bgr = self.rgb_to_bgr(background_rgb)
 
-            return self.create_gradient_background(
+            return self._get_gradient_background(
                 height=frame.shape[0],
                 width=frame.shape[1],
                 base_color=background_bgr,
-                brightness_increase=self.brightness_increase
             )
         return frame
 
@@ -717,11 +747,10 @@ class ImageProcessor:
             background_dark_rgb = self.hex_to_rgb(self.background_dark_color)
             background_dark_bgr = self.rgb_to_bgr(background_dark_rgb)
 
-            frame = self.create_gradient_background(
+            frame = self._get_gradient_background(
                 height=frame.shape[0],
                 width=frame.shape[1],
                 base_color=background_dark_bgr,
-                brightness_increase=self.brightness_increase
             )
 
         self._draw_bottom_status(frame, "No face detected")

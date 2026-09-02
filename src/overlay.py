@@ -229,6 +229,10 @@ class OverlayWindow:
         else:
             pass  # Window might already be destroyed
 
+        if self.handles.brush:
+            win32gui.DeleteObject(self.handles.brush)
+            self.handles.brush = None
+
     def show(self, show=True):
         """Show or hide the overlay window"""
         if show:
