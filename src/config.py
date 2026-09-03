@@ -49,6 +49,27 @@ THRESHOLD_KNOB_STEP_PRECISE = 0.001
 SHOW_CAMERA = False
 SHOW_CAMERA_KEY = 'app.show_camera'
 
+# Camera preprocessing. Frames keep the exact resolution delivered by the
+# camera; only luminance is adjusted before FaceMesh and Camera Image output.
+CAMERA_PREPROCESSING_ENABLED = True
+CAMERA_PREPROCESSING_STRENGTH = 0.60
+CAMERA_CLAHE_CLIP_LIMIT = 1.8
+CAMERA_CLAHE_GRID_SIZE = (8, 8)
+CAMERA_DARK_FRAME_THRESHOLD = 75.0
+CAMERA_MAX_GAMMA = 1.30
+CAMERA_LUMINANCE_SMOOTHING_ALPHA = 0.10
+
+# Dynamic FaceMesh region of interest. After the first full-frame detection,
+# FaceMesh receives a square crop around the face so that the face occupies a
+# larger part of its input. Coordinates are mapped back to the original camera
+# frame before distance calculation and drawing.
+CAMERA_FACE_ROI_ENABLED = True
+CAMERA_FACE_ROI_MARGIN = 0.35
+CAMERA_FACE_ROI_SMOOTHING_ALPHA = 0.30
+CAMERA_FACE_ROI_MIN_SIZE = 240
+CAMERA_FACE_ROI_FULL_FRAME_INTERVAL = 120
+CAMERA_FACE_ROI_SHOW = False
+
 # Mirror effect configuration
 MIRROR_EFFECT_ENABLED = True  # Is the mirror effect enabled by default?
 MIRROR_EFFECT_KEY = 'app.mirror_effect'  # Key for saving the setting

@@ -26,6 +26,13 @@ from .config import (
     LINE_SMOOTHING,
     LANDMARK_SMOOTHING_ALPHA,
     RATIO_SMOOTHING_ALPHA,
+    CAMERA_PREPROCESSING_ENABLED,
+    CAMERA_PREPROCESSING_STRENGTH,
+    CAMERA_CLAHE_CLIP_LIMIT,
+    CAMERA_CLAHE_GRID_SIZE,
+    CAMERA_DARK_FRAME_THRESHOLD,
+    CAMERA_MAX_GAMMA,
+    CAMERA_LUMINANCE_SMOOTHING_ALPHA,
 )
 
 class ImageProcessor:
@@ -71,6 +78,16 @@ class ImageProcessor:
         # NumPy arrays). Keep one immutable base and copy it before drawing.
         self._background_cache_key = None
         self._background_cache = None
+
+        # Reuse preprocessing objects between frames. No fixed camera size is
+        # stored: OpenCV operations preserve the actual input frame shape.
+        self._camera_clahe = cv.createCLAHE(
+            clipLimit=CAMERA_CLAHE_CLIP_LIMIT,
+            tileGridSize=CAMERA_CLAHE_GRID_SIZE,
+        )
+        self._smoothed_camera_luminance = None
+        self._gamma_lut_value = None
+        self._gamma_lut = None
 
         # Предварительно вычисляем цвета для _draw_mesh
         self._mesh_color_bgr = self.rgb_to_bgr(self.hex_to_rgb(self.mesh_color))
@@ -267,32 +284,67 @@ class ImageProcessor:
 
         return frame
 
-    @staticmethod
-    def enhance_image(frame):
-        """Enhance image quality for better recognition under different lighting conditions"""
-        # Apply adaptive histogram equalization
+    def enhance_image(self, frame):
+        """Improve difficult camera lighting without changing frame geometry.
+
+        The returned array has the same height and width as the frame supplied
+        by VideoCapture. CLAHE is limited to luminance, then blended with the
+        original image to avoid an artificial, noisy result. Gamma correction
+        is enabled only for dark scenes and follows a smoothed brightness value
+        so that landmarks and the Camera Image view do not flicker.
+        """
+        if not CAMERA_PREPROCESSING_ENABLED or frame is None or frame.size == 0:
+            return frame
+
         lab = cv.cvtColor(frame, cv.COLOR_BGR2LAB)
-        l, a, b = cv.split(lab)
-        clahe = cv.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-        cl = clahe.apply(l)
-        limg = cv.merge((cl, a, b))
+        luminance = lab[:, :, 0]
+        current_luminance = float(np.mean(luminance))
 
-        # Convert back to BGR
-        enhanced = cv.cvtColor(limg, cv.COLOR_LAB2BGR)
+        if self._smoothed_camera_luminance is None:
+            self._smoothed_camera_luminance = current_luminance
+        else:
+            alpha = CAMERA_LUMINANCE_SMOOTHING_ALPHA
+            self._smoothed_camera_luminance += alpha * (
+                current_luminance - self._smoothed_camera_luminance
+            )
 
-        # Apply gamma correction
-        gamma = 1.2  # Can be adjusted based on conditions
-        enhanced = ImageProcessor.adjust_gamma(enhanced, gamma)
+        lab[:, :, 0] = self._camera_clahe.apply(luminance)
+        contrast_enhanced = cv.cvtColor(lab, cv.COLOR_LAB2BGR)
+        enhanced = cv.addWeighted(
+            contrast_enhanced,
+            CAMERA_PREPROCESSING_STRENGTH,
+            frame,
+            1.0 - CAMERA_PREPROCESSING_STRENGTH,
+            0.0,
+        )
+
+        gamma = self._adaptive_camera_gamma(self._smoothed_camera_luminance)
+        if gamma > 1.0:
+            enhanced = cv.LUT(enhanced, self._get_gamma_lut(gamma))
 
         return enhanced
 
     @staticmethod
-    def adjust_gamma(image, gamma=1.0):
-        """Apply gamma correction to image"""
-        inv_gamma = 1.0 / gamma
-        table = np.array([((i / 255.0) ** inv_gamma) * 255
-            for i in np.arange(0, 256)]).astype("uint8")
-        return cv.LUT(image, table)
+    def _adaptive_camera_gamma(luminance):
+        """Return a conservative brightening gamma for a smoothed luminance."""
+        if luminance >= CAMERA_DARK_FRAME_THRESHOLD:
+            return 1.0
+        darkness = 1.0 - max(0.0, luminance) / CAMERA_DARK_FRAME_THRESHOLD
+        return 1.0 + darkness * (CAMERA_MAX_GAMMA - 1.0)
+
+    def _get_gamma_lut(self, gamma):
+        """Reuse a gamma table until the rounded adaptive value changes."""
+        gamma = round(float(gamma), 2)
+        if self._gamma_lut is None or gamma != self._gamma_lut_value:
+            inv_gamma = 1.0 / gamma
+            values = np.arange(256, dtype=np.float32) / 255.0
+            self._gamma_lut = np.clip(
+                np.power(values, inv_gamma) * 255.0,
+                0,
+                255,
+            ).astype(np.uint8)
+            self._gamma_lut_value = gamma
+        return self._gamma_lut
 
     @staticmethod
     def euclidean_distance_3D(points):
